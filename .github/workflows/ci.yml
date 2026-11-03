@@ -1,0 +1,24 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: extension } }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: extension/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      # The real extension in Chrome against the local chat page (demo mode, no API key).
+      - name: End to end
+        run: pnpm e2e
+        env: { CHROME_PATH: /usr/bin/google-chrome, CI: "true" }

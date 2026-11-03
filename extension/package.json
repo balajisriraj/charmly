@@ -1,0 +1,31 @@
+{
+  "name": "charmly",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:dev": "node build.mjs --dev",
+    "watch": "node build.mjs --dev --watch",
+    "typecheck": "tsc -p .",
+    "test": "vitest run",
+    "e2e": "node build.mjs --dev && node e2e/run.mjs",
+    "package": "node build.mjs && cd dist && zip -qr ../charmly.zip ."
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.0",
+    "@types/node": "^22",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "esbuild": "^0.25.0",
+    "jsdom": "^26.0.0",
+    "puppeteer-core": "^25.16.0",
+    "typescript": "~5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

@@ -1,0 +1,4 @@
+node_modules/
+extension/dist/
+extension/charmly.zip
+.DS_Store

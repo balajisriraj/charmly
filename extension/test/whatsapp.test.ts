@@ -1,0 +1,71 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { beforeEach, describe, expect, it } from "vitest";
+import { textOf, WhatsApp } from "../src/content/whatsapp";
+
+// Load the test page's markup (without running its script) and build messages the same way it does.
+function page(messages: [string, string, string][]) {
+  const html = readFileSync(resolve(process.cwd(), "fixtures/chat.html"), "utf8").replace(/<script>[\s\S]*<\/script>/, "");
+  document.documentElement.innerHTML = html;
+  const list = document.getElementById("list")!;
+  messages.forEach(([dir, name, text], i) => {
+    list.insertAdjacentHTML(
+      "beforeend",
+      `<div role="row"><div class="message-${dir}"><div class="copyable-text" data-pre-plain-text="[10:0${i}, 03/11/2026] ${name}: "><span class="selectable-text"><span>${text}</span></span></div><span class="meta">10:0${i}</span></div></div>`,
+    );
+  });
+}
+
+describe("WhatsApp adapter", () => {
+  beforeEach(() =>
+    page([
+      ["out", "Me", "hey!"],
+      ["in", "Ananya", 'guess what <img class="emoji" alt="🥳">'],
+      ["in", "Ananya", "I got the job"],
+    ]),
+  );
+
+  it("reads messages with direction and emoji, oldest first, without names", () => {
+    const wa = new WhatsApp(document);
+    expect(wa.messages()).toEqual([
+      { speaker: "me", text: "hey!", time: "10:00" },
+      { speaker: "them", text: "guess what 🥳", time: "10:01" },
+      { speaker: "them", text: "I got the job", time: "10:02" },
+    ]);
+    expect(JSON.stringify(wa.messages())).not.toContain("Ananya");
+  });
+
+  it("limits context and keys the latest message by direction", () => {
+    const wa = new WhatsApp(document);
+    expect(wa.messages(2).map((m) => m.text)).toEqual(["guess what 🥳", "I got the job"]);
+    expect(wa.lastKey()).toMatch(/^in:/);
+  });
+
+  it("finds the chat, the composer and reports health", () => {
+    const wa = new WhatsApp(document);
+    expect(wa.chat()).toBe("Ananya");
+    expect(wa.composer()?.getAttribute("role")).toBe("textbox");
+    expect(wa.health()).toEqual({ chat: true, messages: 3, composer: true });
+  });
+
+  it("inserts into the composer without sending", () => {
+    const wa = new WhatsApp(document);
+    expect(wa.insert("on my way 😊")).toBe(true);
+    expect(wa.draft()).toBe("on my way 😊");
+    expect(wa.messages()).toHaveLength(3);
+  });
+
+  it("degrades to an empty, unhealthy view when the page isn't a chat", () => {
+    document.body.innerHTML = "<div>login screen</div>";
+    const wa = new WhatsApp(document);
+    expect(wa.messages()).toEqual([]);
+    expect(wa.health()).toEqual({ chat: false, messages: 0, composer: false });
+    expect(wa.insert("x")).toBe(false);
+  });
+
+  it("extracts text with line breaks and strips direction marks", () => {
+    const el = document.createElement("span");
+    el.innerHTML = "‎line one<br>line two";
+    expect(textOf(el)).toBe("line one\nline two");
+  });
+});
