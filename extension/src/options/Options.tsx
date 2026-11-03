@@ -61,12 +61,16 @@ function App() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [chatPresets, setChatPresets] = useState<Record<string, string>>({});
   const [goals, setGoals] = useState<Record<string, unknown>>({});
+  const [sites, setSites] = useState<string[]>([]);
+  const [shortcut, setShortcut] = useState("");
   const [saved, setSaved] = useState(true);
   const loaded = useRef(false);
 
   useEffect(() => {
     chrome.storage.local.get(["presets", "settings", "chatNotes", "chatPresets", "chatGoals"]).then(({ presets, settings, chatNotes, chatPresets, chatGoals }) => {
       setGoals((chatGoals as Record<string, unknown>) ?? {});
+      chrome.storage.local.get("sites").then(({ sites }) => setSites((sites as string[]) ?? []));
+      chrome.commands.getAll().then((cs) => setShortcut(cs.find((c) => c.name === "activate")?.shortcut ?? ""));
       const list = normalisePresets(presets);
       setPresets(list);
       setSelected(new URLSearchParams(location.search).get("preset") ?? list[0]?.id ?? "");
@@ -230,6 +234,27 @@ function App() {
           <div className="editor empty">No presets. Add one, or restore the starters.</div>
         )}
       </div>
+
+      <section className="card chats">
+        <h2>Sites</h2>
+        <p className="hint">
+          Charmly is always on WhatsApp Web. Anywhere else, press <b>{shortcut || "your Charmly shortcut"}</b> in a message box (change it at chrome://extensions/shortcuts), or switch a site on from the popup so it suggests replies automatically.
+        </p>
+        {sites.length > 0 && (
+          <ul>
+            {sites.map((o) => (
+              <li key={o}>
+                <b>{o.replace(/^https?:\/\/(www\.)?/, "")}</b>
+                <span className="tag">Always on</span>
+                <span className="note" />
+                <button className="link" onClick={() => chrome.runtime.sendMessage({ type: "site", origin: o, on: false }).then(() => setSites(sites.filter((x) => x !== o)))}>
+                  Turn off
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {chats.length > 0 && (
         <section className="card chats">

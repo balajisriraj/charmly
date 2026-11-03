@@ -1,6 +1,11 @@
 // Everything Charmly knows about WhatsApp Web's page lives here, so a markup change means editing one file.
 // Selectors prefer long-lived hooks (ids, roles, data attributes) and fall back gracefully.
 import type { ChatMessage, Speaker } from "../shared/types";
+import { darkBehind, insertInto } from "./insert";
+import type { InsertResult, Site } from "./site";
+import { textOf } from "./text";
+
+export { same, textOf } from "./text";
 
 const SEL = {
   main: ["#main", "[data-testid='conversation-panel-wrapper']"],
@@ -22,27 +27,14 @@ const first = <T extends Element>(root: ParentNode, selectors: string[]): T | nu
   return null;
 };
 
-/** Compare composer text loosely: editors add non-breaking spaces, trailing newlines and zero-width marks. */
-export const same = (a: string, b: string) => {
-  const norm = (x: string) => x.replace(/[\u00a0\u202f]/g, " ").replace(/[\u200b-\u200f\ufeff]/g, "").replace(/\s+/g, " ").trim();
-  return norm(a) === norm(b);
-};
-
-/** Text of a message, keeping emoji (WhatsApp renders them as <img alt="😂">) and dropping UI chrome. */
-export function textOf(el: Element): string {
-  let out = "";
-  const walk = (node: Node) => {
-    if (node.nodeType === Node.TEXT_NODE) out += node.textContent ?? "";
-    else if (node instanceof HTMLImageElement) out += node.alt ?? "";
-    else if (node instanceof HTMLBRElement) out += "\n";
-    else node.childNodes.forEach(walk);
-  };
-  walk(el);
-  return out.replace(/‎|‏/g, "").trim();
-}
-
-export class WhatsApp {
+export class WhatsApp implements Site {
+  readonly name = "WhatsApp";
+  readonly generic = false;
   constructor(private readonly doc: Document = document) {}
+
+  anchor(): HTMLElement | null {
+    return this.footer();
+  }
 
   main(): HTMLElement | null {
     return first(this.doc, SEL.main);
@@ -113,52 +105,10 @@ export class WhatsApp {
     return c ? textOf(c) : "";
   }
 
-  /**
-   * Put text in the message box without sending it.
-   *
-   * WhatsApp's editor (Lexical) owns its own state: writing to the DOM directly is ignored or undone, and
-   * text arrives a frame or two after the input event. So: select what's there, go through the editor's own
-   * input path (insertText, then a synthetic paste), and wait for the editor to render before checking.
-   */
-  async insert(text: string): Promise<"ok" | "no-box" | "not-applied"> {
+  /** Put text in the message box without sending it. */
+  async insert(text: string): Promise<InsertResult> {
     const box = this.composer();
-    if (!box) return "no-box";
-    const landed = async () => {
-      for (let i = 0; i < 10; i++) {
-        await new Promise((r) => setTimeout(r, 30));
-        if (same(textOf(box), text)) return true;
-      }
-      return false;
-    };
-    const selectAll = () => {
-      box.focus();
-      const range = this.doc.createRange();
-      range.selectNodeContents(box);
-      const selection = this.doc.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    };
-
-    selectAll();
-    if (this.doc.execCommand?.("insertText", false, text) && (await landed())) return "ok";
-
-    selectAll();
-    try {
-      const data = new DataTransfer();
-      data.setData("text/plain", text);
-      box.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
-      if (await landed()) return "ok";
-    } catch {
-      /* ClipboardEvent construction can fail in some contexts */
-    }
-
-    // Plain contenteditable (no editor framework): writing the text and announcing it is enough.
-    if (!box.hasAttribute("data-lexical-editor")) {
-      box.textContent = text;
-      box.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
-      if (await landed()) return "ok";
-    }
-    return "not-applied";
+    return box ? insertInto(box, text) : "no-box";
   }
 
   /**
@@ -166,15 +116,7 @@ export class WhatsApp {
    * this reads what's actually on screen: the brightness of the chat's own background.
    */
   dark(): boolean {
-    const b = this.doc.body;
-    if (b.classList.contains("dark") || b.dataset.theme === "dark") return true;
-    let el: Element | null = this.footer() ?? this.main() ?? b;
-    while (el) {
-      const m = getComputedStyle(el).backgroundColor.match(/\d+(\.\d+)?/g)?.map(Number);
-      if (m && (m.length < 4 || m[3] > 0.5)) return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255 < 0.45;
-      el = el.parentElement;
-    }
-    return false;
+    return darkBehind(this.footer() ?? this.main(), this.doc);
   }
 
   /** What Charmly can see right now, shown in the popup so a WhatsApp redesign is obvious rather than silent. */

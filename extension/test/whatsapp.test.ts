@@ -79,3 +79,24 @@ describe("WhatsApp adapter", () => {
     expect(textOf(el)).toBe("line one\nline two");
   });
 });
+
+describe("generic sites", () => {
+  it("keeps the words and drops names, times and delivery states", async () => {
+    const { clean } = await import("../src/content/generic");
+    expect(clean("Priya Raman\n10:42 AM\nanyone up for a hike?")).toBe("anyone up for a hike?");
+    expect(clean("omg same 😂\n10:41")).toBe("omg same 😂");
+    expect(clean("Today")).toBe("");
+    expect(clean("Seen")).toBe("");
+    expect(clean("I'm in, see you at 8")).toBe("I'm in, see you at 8");
+  });
+  it("knows a message box from a search field", async () => {
+    const { isMessageBox } = await import("../src/content/generic");
+    document.body.innerHTML = `<textarea id="a" placeholder="Message #general"></textarea><textarea id="b" placeholder="Search messages"></textarea><div id="c" contenteditable="true" aria-label="Write a message"></div><input id="d" type="text">`;
+    // jsdom has no layout, so give the boxes a size.
+    for (const el of document.querySelectorAll<HTMLElement>("textarea, div, input")) el.getBoundingClientRect = () => ({ width: 400, height: 40 }) as DOMRect;
+    const el = (id: string) => document.getElementById(id);
+    expect(isMessageBox(el("a"))).toBe(true);
+    expect(isMessageBox(el("b"))).toBe(false);
+    expect(isMessageBox(el("d"))).toBe(false); // single-line inputs are forms, not chats
+  });
+});

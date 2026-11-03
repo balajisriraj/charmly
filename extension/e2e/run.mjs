@@ -11,9 +11,11 @@ const CHROME =
   process.env.CHROME_PATH ??
   (process.platform === "darwin" ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" : "/usr/bin/google-chrome");
 
+// Test pages: chat.html (WhatsApp-like) by default, and the other fixtures by name.
 const server = createServer((req, res) => {
+  const name = /^\/(bubbles|thread|linkedin|plain)\.html/.exec(req.url ?? "")?.[1] ?? "chat";
   res.setHeader("content-type", "text/html; charset=utf-8");
-  res.end(readFileSync(resolve(ROOT, "fixtures/chat.html")));
+  res.end(readFileSync(resolve(ROOT, `fixtures/${name}.html`)));
 }).listen(0);
 const url = `http://127.0.0.1:${server.address().port}/chat.html`;
 
@@ -315,10 +317,6 @@ try {
   });
   await (await shadow(".setup")).click();
   check(await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelectorAll(".sheet [data-act=preset]").length >= 5), "the sheet lists the starter presets");
-  if (SHOTS) {
-    await sleep(300);
-    await page.screenshot({ path: resolve(ROOT, "../docs/presets-menu.png") });
-  }
   await (await shadow('.sheet [data-act=preset][data-id="work"]')).click();
   await sleep(150);
   check((await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".setup").textContent)).includes("Work"), "the chat now shows the Work preset");
@@ -377,6 +375,149 @@ try {
   await (await shadow(`.s-engine [data-model="${OLLAMA_MODEL}"]`)).click();
   await page.waitForFunction((m) => document.querySelector("charmly-tray").shadowRoot.querySelector(".setup").textContent.includes(m), { timeout: 5000 }, OLLAMA_MODEL);
   check(true, "and back to the local model");
+
+  // ---- Beyond WhatsApp: any messaging site, through the layout reader, site hints, the shortcut and per-site switch.
+  console.log("Charmly on other sites");
+  const port = server.address().port;
+  const lastPrompt = () => ollamaRequests.at(-1)?.messages?.[1]?.content ?? "";
+  const transcript = () => lastPrompt().match(/<chat>\n([\s\S]*?)\n<\/chat>/)?.[1] ?? "";
+  const fake = !process.env.OLLAMA_E2E;
+  const other = await browser.newPage();
+  const T = "document.querySelector('charmly-tray')";
+  const oq = (expr) => other.evaluate(`(() => { const r = ${T}?.shadowRoot; return ${expr}; })()`);
+  const oact = (sel) => other.evaluate(`${T}.shadowRoot.querySelector(${JSON.stringify(sel)}).click()`);
+  const trayShown = () => other.evaluate(`!!${T} && ${T}.style.display !== 'none'`);
+  const otherReady = () =>
+    other.waitForFunction(() => {
+      const r = document.querySelector("charmly-tray")?.shadowRoot;
+      return r && (r.querySelector(".err") || (r.querySelectorAll("button.card").length >= 1 && !r.querySelector(".skeleton") && r.querySelector(".tray.ready")));
+    }, { timeout: 90000 });
+  const otherCards = () => oq("[...r.querySelectorAll('button.card .text')].map((e) => e.textContent)");
+  const ext = async (fn, ...args) => {
+    const p = await browser.newPage();
+    await p.goto(`chrome-extension://${extId}/popup.html`);
+    const out = await p.evaluate(fn, ...args);
+    await p.close();
+    await other.bringToFront();
+    return out;
+  };
+  const tabOf = (part) => ext(async (part) => (await chrome.tabs.query({})).find((t) => t.url?.includes(part))?.id, part);
+
+  // A Messenger-style chat with obfuscated markup: read from layout alone.
+  await other.goto(`http://127.0.0.1:${port}/bubbles.html`);
+  await other.waitForFunction(() => document.querySelector("charmly-tray"), { timeout: 10000 });
+  await sleep(500);
+  check(!(await trayShown()), "on other sites, stays out of the way until you're in a message box");
+  await other.click("[contenteditable]");
+  await sleep(700);
+  check(await trayShown(), "docks above the box you click into");
+  await other.evaluate(() => window.chat.receive("we should totally do karaoke again 😂 are you free friday?"));
+  await otherReady();
+  if (fake)
+    check(
+      transcript() === "Them: hey! it was so fun meeting you at Arun's party 😊\nMe: haha same, your karaoke was legendary\nThem: omg don't remind me 🙈 what are you up to this week?\nThem: we should totally do karaoke again 😂 are you free friday?",
+      `reads a bubble chat from its layout, sides and all (${JSON.stringify(transcript())})`,
+    );
+  const bubbleCards = await otherCards();
+  check(bubbleCards.length >= 1, `suggests replies automatically on a new message (${bubbleCards.length})`);
+  await oact("button.card");
+  await sleep(300);
+  check((await other.evaluate(() => window.chat.draft())) === bubbleCards[0], "inserts into the site's rich-text box");
+  if (SHOTS) {
+    await sleep(300);
+    await other.screenshot({ path: resolve(ROOT, "../docs/anywhere.png") });
+  }
+
+  // A Slack-style channel: everyone on the left, names and times dropped, a plain textarea.
+  await other.goto(`http://127.0.0.1:${port}/thread.html`);
+  await other.waitForFunction(() => document.querySelector("charmly-tray"), { timeout: 10000 });
+  await other.click("textarea");
+  await sleep(500);
+  await other.evaluate(() => window.chat.receive("does 8 work for everyone?", "Priya Raman"));
+  await otherReady();
+  if (fake)
+    check(
+      transcript() === "Them: anyone up for a hike on Saturday?\nThem: I'm in if it's not too early 😅\nThem: 8am start, coffee on the way, promise\nThem: does 8 work for everyone?",
+      `reads a channel without names or times (${JSON.stringify(transcript())})`,
+    );
+  const threadCards = await otherCards();
+  await oact("button.card");
+  await sleep(300);
+  check((await other.evaluate(() => window.chat.draft())) === threadCards[0], "inserts into a plain textarea");
+  // Select one message to reply to just that.
+  await other.keyboard.press("Escape");
+  await other.evaluate(() => {
+    const el = document.querySelectorAll(".x")[2];
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+  });
+  await sleep(700);
+  check(/Reply to selected text/.test(await oq("r.textContent")), "offers to reply to text you select");
+  await oact("[data-act=suggest]");
+  await otherReady();
+  if (fake) check(transcript() === "Them: 8am start, coffee on the way, promise", `answers just the selection (${JSON.stringify(transcript())})`);
+
+  // LinkedIn's hints: direction from its markup, the chat's name from its header.
+  await other.goto(`http://127.0.0.1:${port}/linkedin.html`);
+  await other.waitForFunction(() => document.querySelector("charmly-tray"), { timeout: 10000 });
+  await other.click(".msg-form__contenteditable");
+  await sleep(500);
+  await other.evaluate(() => window.chat.receive("Would Thursday at 4 work for a quick call?"));
+  await otherReady();
+  if (fake)
+    check(
+      transcript() === "Them: Hi Balaji, loved your talk on agent design last week!\nMe: Thank you Ananya, glad it was useful\nThem: We're hiring for an AI lead role, would you be open to a chat?\nThem: Would Thursday at 4 work for a quick call?",
+      `site hints read LinkedIn's thread (${JSON.stringify(transcript())})`,
+    );
+  const health = await ext(async (id) => chrome.tabs.sendMessage(id, { type: "health" }), await tabOf("linkedin.html"));
+  check(health?.site === "LinkedIn" && health.messages === 4, `knows it's on LinkedIn (${health?.site}, ${health?.messages} messages)`);
+
+  // The shortcut, on a site Charmly isn't on: Chrome lets it in for that tab, and it opens on your box.
+  await other.goto(`http://localhost:${port}/plain.html`);
+  await sleep(500);
+  check(!(await other.evaluate(() => !!document.querySelector("charmly-tray"))), "isn't on sites you haven't switched on");
+  await other.click("#box");
+  await ext(async (id) => chrome.runtime.sendMessage({ type: "activate-tab", tabId: id }), await tabOf("plain.html"));
+  await other.waitForFunction(() => document.querySelector("charmly-tray")?.shadowRoot?.querySelector(".err, .card"), { timeout: 10000 });
+  check(/Select the message you're replying to/.test(await oq("r.textContent")), "the shortcut loads Charmly into the tab and asks what to reply to when it can't tell");
+  await other.keyboard.press("Escape");
+  await other.evaluate(() => {
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById("q"));
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+  });
+  await sleep(500);
+  await ext(async (id) => chrome.runtime.sendMessage({ type: "activate-tab", tabId: id }), await tabOf("plain.html"));
+  await otherReady();
+  if (fake) check(transcript() === "Them: Could you send me the deck from Tuesday's review when you get a chance?", "the shortcut replies to the selected message");
+  await other.evaluate(() => {
+    getSelection().removeAllRanges();
+    const box = document.getElementById("box");
+    box.focus();
+    box.value = "sure will send it tonight";
+  });
+  await sleep(500);
+  await ext(async (id) => chrome.runtime.sendMessage({ type: "activate-tab", tabId: id }), await tabOf("plain.html"));
+  await otherReady();
+  if (fake) check(lastPrompt().includes('The person has drafted: "sure will send it tonight"'), "with nothing to reply to, the shortcut polishes your draft");
+
+  // Always on this site: registered for that site, so it loads by itself next time; off removes it.
+  const origin = `http://localhost:${port}`;
+  const on = await ext(async (o) => chrome.runtime.sendMessage({ type: "site", origin: o, on: true }), origin);
+  check(on?.ok && on.sites.includes(origin), "switches a site on");
+  await other.goto(`http://localhost:${port}/thread.html`);
+  await other.waitForFunction(() => document.querySelector("charmly-tray"), { timeout: 10000 }).catch(() => {});
+  check(await other.evaluate(() => !!document.querySelector("charmly-tray")), "and loads there by itself");
+  await ext(async (o) => chrome.runtime.sendMessage({ type: "site", origin: o, on: false }), origin);
+  await other.goto(`http://localhost:${port}/thread.html`);
+  await sleep(800);
+  check(!(await other.evaluate(() => !!document.querySelector("charmly-tray"))), "switching it off stops it");
+  const manifest = await ext(async () => chrome.runtime.getManifest());
+  check(manifest.commands?.activate?.suggested_key?.mac === "Alt+Shift+C", "ships the ⌥⇧C shortcut");
+  await other.close();
 
   // The popup, rendered as a page for the screenshot.
   if (SHOTS) {

@@ -119,5 +119,6 @@ button.card:active { transform: translateY(0) scale(.99); }
 @keyframes rise { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 @keyframes shimmer { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-@media (max-width: 760px) { .cards { grid-template-columns: 1fr; } }
+.tray:not(.pill), .tray.with-sheet { container-type: inline-size; }
+@container (max-width: 560px) { .cards { grid-template-columns: 1fr; } .card { min-height: 0; } .vibe { display: none; } }
 

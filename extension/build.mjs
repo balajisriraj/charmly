@@ -9,12 +9,14 @@ const { version } = JSON.parse(await import("node:fs").then((fs) => fs.readFileS
 rmSync("dist", { recursive: true, force: true });
 mkdirSync("dist", { recursive: true });
 
-const pages = ["https://web.whatsapp.com/*", ...(dev ? ["http://localhost/*", "http://127.0.0.1/*"] : [])];
+// WhatsApp always; other sites only through the shortcut or "Always on this site". In dev, the local test pages
+// on 127.0.0.1 load statically, and localhost is left for testing the per-site switch.
+const pages = ["https://web.whatsapp.com/*", ...(dev ? ["http://127.0.0.1/*"] : [])];
 const manifest = {
   manifest_version: 3,
   name: dev ? "Charmly (dev)" : "Charmly",
   version,
-  description: "Reply suggestions for WhatsApp Web, in your own voice. Tap to insert; you always send. By Balaji Sri Raj.",
+  description: "Reply suggestions in your own voice, on WhatsApp Web and wherever you message. Tap to insert; you always send. By Balaji Sri Raj.",
   author: "Balaji Sri Raj",
   homepage_url: "https://balajisriraj.com",
   icons: { 16: "icons/16.png", 32: "icons/32.png", 48: "icons/48.png", 128: "icons/128.png" },
@@ -22,7 +24,12 @@ const manifest = {
   action: { default_popup: "popup.html", default_title: "Charmly", default_icon: { 16: "icons/16.png", 32: "icons/32.png" } },
   background: { service_worker: "background.js", type: "module" },
   content_scripts: [{ matches: pages, js: ["content.js"], run_at: "document_idle" }],
-  permissions: ["storage", "declarativeNetRequest"],
+  permissions: ["storage", "declarativeNetRequest", "activeTab", "scripting"],
+  // Other messaging sites, asked for one at a time from the popup.
+  optional_host_permissions: ["https://*/*", "http://*/*"],
+  commands: {
+    activate: { suggested_key: { default: "Alt+Shift+C", mac: "Alt+Shift+C" }, description: "Suggest replies or polish your draft, in the box you're typing in" },
+  },
   // Ollama listens on localhost; any port, since people change it.
   host_permissions: [...pages, "https://api.anthropic.com/*", "http://localhost/*", "http://127.0.0.1/*"],
   content_security_policy: { extension_pages: "script-src 'self'; object-src 'self'" },

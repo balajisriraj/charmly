@@ -67,3 +67,5 @@ footer { margin: 12px 4px 0; font-size: 11.5px; color: var(--ink-3); }
 .presets button.on { border-color: #ff5fa2; background: #fff5fa; box-shadow: 0 6px 16px -12px #ff5fa2; }
 footer .credit { display: block; margin-top: 8px; color: var(--ink-3); text-decoration: none; }
 footer .credit b { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.site .actions { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; }
+.site kbd { font: 600 11px ui-monospace, "SF Mono", Menlo, monospace; padding: 1px 6px; border-radius: 6px; background: var(--line); color: var(--ink-2); }

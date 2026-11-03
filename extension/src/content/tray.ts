@@ -58,6 +58,7 @@ export class Tray {
   goal: Goal | null = null; // where this chat should slowly head, and which step it's on
   read: GoalRead | null = null; // the latest read: have they brought it up themselves?
   typing = false; // the person is writing their own reply while suggestions are open
+  selection = false; // text is selected on the page, to reply to just that
 
   private sheet = false; // the per-chat sheet is open
   private pace: Pace = 4; // chosen in the sheet
@@ -86,19 +87,37 @@ export class Tray {
     return this.state.kind === "ready" || this.state.kind === "loading" ? this.state.suggestions : [];
   }
 
-  /** Dock above the message box; WhatsApp's layout changes as panels open, so this runs on every render and resize. */
+  /**
+   * Dock above the message box (below it when the box is near the top of the page). Layouts change as panels
+   * open, so this runs on every render and resize. A small box still gets a usable tray, kept on screen.
+   */
   place(anchor: HTMLElement | null, dark: boolean) {
     const panel = this.panel;
     panel.classList.toggle("dark", dark);
+    const vw = window.innerWidth;
     if (!anchor) {
-      panel.style.display = "none";
+      // Nothing to dock to: only a message needs showing, floating at the bottom of the page.
+      if (this.state.kind !== "error") {
+        panel.style.display = "none";
+        return;
+      }
+      const width = Math.min(460, vw - 24);
+      Object.assign(panel.style, { display: "", top: "", bottom: "24px", width: `${width}px`, left: `${Math.round((vw - width) / 2)}px` });
       return;
     }
     const r = anchor.getBoundingClientRect();
+    const width = Math.round(Math.max(Math.min(r.width - 24, 760), Math.min(420, vw - 24)));
+    const left = Math.round(Math.min(Math.max(r.left + 12, 12), vw - width - 12));
     panel.style.display = "";
-    panel.style.left = `${Math.round(r.left + 12)}px`;
-    panel.style.width = `${Math.round(Math.min(r.width - 24, 760))}px`;
-    panel.style.bottom = `${Math.round(window.innerHeight - r.top + 10)}px`;
+    panel.style.left = `${left}px`;
+    panel.style.width = `${width}px`;
+    if (r.top < 320 && window.innerHeight - r.bottom > 320) {
+      panel.style.bottom = "";
+      panel.style.top = `${Math.round(r.bottom + 10)}px`;
+    } else {
+      panel.style.top = "";
+      panel.style.bottom = `${Math.round(window.innerHeight - r.top + 10)}px`;
+    }
   }
 
   set(state: State) {
@@ -312,7 +331,7 @@ export class Tray {
 
     if (s.kind === "pill") {
       body = `<div class="bar">${this.brand()}
-          <button class="ghost" data-act="suggest">Suggest replies <kbd>${ALT}R</kbd></button>
+          <button class="ghost" data-act="suggest">${this.selection ? "Reply to selected text" : "Suggest replies"}${this.selection ? "" : ` <kbd>${ALT}R</kbd>`}</button>
           ${s.draft ? `<button class="ghost polish" data-act="polish">Polish my draft <kbd>${ALT}P</kbd></button>` : ""}
           ${this.goal ? this.goalChip(this.goal) : ""}
           <span class="spacer"></span>${this.setupChip()}</div>${this.sheet ? this.sheetView() : ""}`;

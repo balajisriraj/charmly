@@ -4,7 +4,8 @@ import { AUTHOR, AUTHOR_URL } from "../shared/brand";
 import type { LocalModel } from "../shared/ollama";
 import { DEFAULTS, type Engine, normalise, normalisePresets, type Preset, type Settings, type StyleProfile, TONES } from "../shared/types";
 
-type Health = { chat: boolean; messages: number; composer: boolean } | null;
+type Health = { chat: boolean; messages: number; composer: boolean; site?: string; generic?: boolean } | null;
+type Tab = { id: number; origin: string; host: string; whatsapp: boolean } | null;
 
 const ENGINES: { id: Engine; label: string; hint: string }[] = [
   { id: "local", label: "On-device", hint: "Ollama on this laptop. Chats never leave it." },
@@ -36,6 +37,9 @@ function App() {
   const [models, setModels] = useState<LocalModel[] | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
+  const [tab, setTab] = useState<Tab>(null);
+  const [siteOn, setSiteOn] = useState(false);
+  const [shortcut, setShortcut] = useState("");
 
   const save = useCallback((patch: Partial<Settings>) => {
     setS((prev) => {
@@ -70,9 +74,17 @@ function App() {
         if (found?.length && !merged.ollamaModel) save({ ollamaModel: found[0].name });
       }
     });
-    chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-      if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "health" }).then(setHealth).catch(() => setHealth(null));
+    chrome.tabs.query({ active: true, currentWindow: true }).then(async ([t]) => {
+      if (!t?.id) return;
+      chrome.tabs.sendMessage(t.id, { type: "health" }).then(setHealth).catch(() => setHealth(null));
+      const url = t.url ? new URL(t.url) : null;
+      if (url && /^https?:$/.test(url.protocol)) {
+        setTab({ id: t.id, origin: url.origin, host: url.host.replace(/^www\./, ""), whatsapp: url.host === "web.whatsapp.com" });
+        const { sites } = (await chrome.storage.local.get("sites")) as { sites?: string[] };
+        setSiteOn(!!sites?.includes(url.origin) && (await chrome.permissions.contains({ origins: [`${url.origin}/*`] })));
+      }
     });
+    chrome.commands.getAll().then((cs) => setShortcut(cs.find((c) => c.name === "activate")?.shortcut ?? ""));
   }, [refreshModels, save]);
 
   const pickEngine = async (engine: Engine) => {
@@ -97,13 +109,32 @@ function App() {
     setNote(res.ok ? `✓ Replied in ${(res.ms / 1000).toFixed(1)}s: "${res.sample}"` : res.message);
   };
 
+  /** Always on this site: Chrome asks for this one site (it must be asked straight from the click). */
+  const toggleSite = (on: boolean) => {
+    if (!tab) return;
+    const asked = on ? chrome.permissions.request({ origins: [`${tab.origin}/*`] }) : Promise.resolve(true);
+    asked.then(async (granted) => {
+      if (!granted) return setNote(`Chrome didn't allow ${tab.host}.`);
+      const res = await chrome.runtime.sendMessage({ type: "site", origin: tab.origin, on, tabId: tab.id });
+      setSiteOn(on && res?.ok);
+      setNote(on ? `Charmly is on for ${tab.host}. It suggests replies when messages arrive.` : `Charmly is off for ${tab.host}.`);
+    });
+  };
+  const useHere = async () => {
+    if (!tab) return;
+    await chrome.runtime.sendMessage({ type: "activate-tab", tabId: tab.id });
+    window.close();
+  };
+
   const status = !health
-    ? "Open web.whatsapp.com to use Charmly"
+    ? tab && !tab.whatsapp
+      ? `Press ${shortcut || "your Charmly shortcut"} in a message box to use Charmly here`
+      : "Open web.whatsapp.com, or press the shortcut in any message box"
     : !health.chat
       ? "Open a chat in WhatsApp"
       : !health.composer
         ? "Can't find the message box (WhatsApp may have changed)"
-        : `Ready · reading ${health.messages} messages`;
+        : `Ready on ${health.site ?? "WhatsApp"} · reading ${health.messages} messages`;
   const engine = ENGINES.find((e) => e.id === s.engine)!;
 
   return (
@@ -123,6 +154,21 @@ function App() {
       <p className={`status ${health?.composer ? "ok" : ""}`}>
         <span className="dot" /> {status}
       </p>
+
+      {tab && !tab.whatsapp && (
+        <section className="site">
+          <h2>This site · {tab.host}</h2>
+          <div className="actions">
+            <button className="btn" onClick={useHere}>
+              Use Charmly here
+            </button>
+            <small>
+              or press <kbd>{shortcut || "set a shortcut"}</kbd> in any message box
+            </small>
+          </div>
+          <Toggle on={siteOn} onChange={toggleSite} label={`Always on ${tab.host}`} hint="Suggests replies automatically when messages arrive" />
+        </section>
+      )}
 
       <section>
         <h2>Engine</h2>

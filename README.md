@@ -2,7 +2,7 @@
 
 **Better replies, in your own voice.**
 
-Charmly is a Chrome extension for WhatsApp Web. When a new message arrives in the chat you have open, it reads the conversation, gets the vibe, and suggests three replies that sound like *you*: warm, playful, direct, or flirty if you've opted in. Tap one and it goes into your message box. You edit it or press Enter yourself. **Charmly never sends anything.**
+Charmly is a Chrome extension for WhatsApp Web, and for any other messaging site in Chrome through one shortcut. When a new message arrives in the chat you have open, it reads the conversation, gets the vibe, and suggests three replies that sound like *you*: warm, playful, direct, or flirty if you've opted in. Tap one and it goes into your message box. You edit it or press Enter yourself. **Charmly never sends anything.**
 
 ![Charmly docked above the message box, with three suggestions and a read of the vibe](docs/suggestions.jpg)
 
@@ -21,6 +21,26 @@ Charmly is a Chrome extension for WhatsApp Web. When a new message arrives in th
 - **Native feel.** A glass tray docked above the message box that follows WhatsApp's light or dark theme, measured from the page itself rather than the system setting.
 
 <p align="center"><img src="docs/suggestions-dark.jpg" width="68%" alt="Dark theme" /> &nbsp; <img src="docs/popup.png" width="24%" alt="The popup: switches, tone, API key, demo mode, your voice" /></p>
+
+## Beyond WhatsApp
+
+![Charmly on a Messenger-style chat it has no special support for](docs/anywhere.jpg)
+
+Charmly works wherever you write messages in Chrome: Telegram, Messenger, Instagram, LinkedIn, Slack, Discord, Google Chat, or a site it has never seen.
+
+- **Press ⌥⇧C (Alt+Shift+C) in any message box.** Chrome lets Charmly into that tab for that moment, so no site permission is needed. It reads the conversation and suggests replies. With nothing to reply to, it polishes your draft. You can change the key at `chrome://extensions/shortcuts`.
+- **Select a message to reply to just that.** On any page, select someone's message and the pill offers **Reply to selected text**, handy for email threads, forums and comment boxes.
+- **Always on this site.** For a messenger you live in, switch it on from the popup. Chrome asks once, for that site only. Charmly then suggests replies by itself when messages arrive, the same as on WhatsApp. The presets page lists these sites, each with a **Turn off** button.
+- **Out of the way.** On other sites the pill only shows while you're in a message box, and Alt shortcuts only apply while the tray is open, so the site's own keys keep working.
+
+**How it reads a page it doesn't know.** Most messengers draw your messages on the right and theirs on the left, so the generic reader works from layout, not markup:
+1. It probes the point just above your message box to find the scrolling conversation (`elementsFromPoint`, cheap even on huge apps).
+2. It groups the text into bubbles: the widest box around each piece of text that is still clearly narrower than the conversation.
+3. It reads each bubble's side.
+
+On layouts where everyone is on the left (Slack, Discord), each row is a message and all count as theirs. Names, times, dates and "Seen" are dropped. Popular sites also get **hints**, such as their message and "mine" selectors and the chat's title (see [`generic.ts`](extension/src/content/generic.ts)). When a hint misses after a redesign, the layout reader takes over. Charmly inserts the way a person types, so textareas, React inputs and rich editors (Lexical, Slate, Draft, Quill) keep their state.
+
+The test pages cover three kinds of page: a Messenger-style chat with obfuscated class names, a Slack-style channel with names and times, and a LinkedIn-style thread using its hints. The hints for the real sites follow their published markup, which can change without notice.
 
 ## How it works
 
@@ -115,7 +135,7 @@ Small models need more help than Claude, so the on-device path is tuned for them
 
 ## Privacy and safety
 
-- Reads only the chat you have open, and only while Charmly is on.
+- Reads only the chat you have open, and only while Charmly is on. Outside WhatsApp, only in a tab where you pressed the shortcut or on a site you switched on.
 - **On-device:** the chat is read and answered on your laptop. Nothing leaves it.
 - **Claude:** the last 12 messages, labelled `Them` and `Me` with no names or numbers, go to Anthropic's API using **your** key. The key lives in the extension's local storage and is only used by its background worker.
 - There is no Charmly server.
@@ -140,7 +160,7 @@ pnpm typecheck && pnpm test   # adapter, stream parser (incl. small-model output
 pnpm e2e                      # the real extension in Chrome, on a local chat page
 ```
 
-`fixtures/chat.html` is a local test page that reproduces just the WhatsApp Web hooks Charmly reads. The end-to-end run loads the built extension into Chrome through puppeteer, simulates incoming messages, and checks the experience:
+`fixtures/chat.html` reproduces just the WhatsApp Web hooks Charmly reads. The other fixtures are the pages described under [Beyond WhatsApp](#beyond-whatsapp). The end-to-end run loads the built extension into Chrome through puppeteer, simulates incoming messages, and checks the experience:
 
 ```
   ✓ docks as a small pill above the message box
@@ -200,6 +220,25 @@ pnpm e2e                      # the real extension in Chrome, on a local chat pa
   ✓ the engine menu lists local models (tiny:1b)
   ✓ switches to Demo from the tray
   ✓ and back to the local model
+  ✓ on other sites, stays out of the way until you're in a message box
+  ✓ docks above the box you click into
+  ✓ reads a bubble chat from its layout, sides and all ("Them: hey! it was so fun meeting you at Arun's party 😊\nMe: haha same, your karaoke was legendary\nThem: omg don't remind me 🙈 what are you up to this week?\nThem: we should totally do karaoke again 😂 are you free friday?")
+  ✓ suggests replies automatically on a new message (3)
+  ✓ inserts into the site's rich-text box
+  ✓ reads a channel without names or times ("Them: anyone up for a hike on Saturday?\nThem: I'm in if it's not too early 😅\nThem: 8am start, coffee on the way, promise\nThem: does 8 work for everyone?")
+  ✓ inserts into a plain textarea
+  ✓ offers to reply to text you select
+  ✓ answers just the selection ("Them: 8am start, coffee on the way, promise")
+  ✓ site hints read LinkedIn's thread ("Them: Hi Balaji, loved your talk on agent design last week!\nMe: Thank you Ananya, glad it was useful\nThem: We're hiring for an AI lead role, would you be open to a chat?\nThem: Would Thursday at 4 work for a quick call?")
+  ✓ knows it's on LinkedIn (LinkedIn, 4 messages)
+  ✓ isn't on sites you haven't switched on
+  ✓ the shortcut loads Charmly into the tab and asks what to reply to when it can't tell
+  ✓ the shortcut replies to the selected message
+  ✓ with nothing to reply to, the shortcut polishes your draft
+  ✓ switches a site on
+  ✓ and loads there by itself
+  ✓ switching it off stops it
+  ✓ ships the ⌥⇧C shortcut
 ```
 
 By default the on-device checks run against a stand-in that speaks Ollama's API and answers in a deliberately messy small-model format, so CI covers them. `OLLAMA_E2E=http://localhost:11434 OLLAMA_MODEL=llama3.2:3b pnpm e2e` runs them against a real model, which also passes.
@@ -208,12 +247,12 @@ By default the on-device checks run against a stand-in that speaks Ollama's API 
 
 ```
 extension/
-  src/content/     whatsapp.ts (the page adapter) · tray.ts + tray.css (the UI) · index.ts (observer, keys)
+  src/content/     whatsapp.ts · generic.ts (any site, plus site hints) · insert.ts · tray.ts + tray.css (the UI) · index.ts (observer, keys, shortcut)
   src/background/  the only code that talks to a model (Claude, Ollama or demo)
   src/shared/      parse.ts · safety.ts · style.ts · prompt.ts · ollama.ts · demo.ts · types.ts
   src/popup/       engine, default preset, your voice, health
   src/options/     the voice-preset editor
-  fixtures/        chat.html, the local test page
+  fixtures/        chat.html (WhatsApp-like) · bubbles.html · thread.html · linkedin.html · plain.html
   e2e/run.mjs      end-to-end checks and README screenshots
   build.mjs        esbuild → MV3 bundle; --dev also allows localhost for the test page
 ```

@@ -162,8 +162,67 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
-// Popup helpers: test a Claude key, list and test local models; the tray's "Edit presets…".
+/**
+ * Charmly beyond WhatsApp. Two ways in, both your choice:
+ *   - the shortcut (⌥⇧C by default): Chrome lets the extension into the current tab for that moment
+ *     (activeTab), so Charmly loads there and opens on the box you're in. No site permission needed.
+ *   - "Always on this site" in the popup: Chrome asks once for that site, and Charmly registers itself there.
+ */
+async function activate(tabId: number) {
+  const ping = () => chrome.tabs.sendMessage(tabId, { type: "activate" });
+  try {
+    await ping();
+  } catch {
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+      await ping();
+    } catch {
+      /* a page Chrome doesn't let extensions into, like chrome:// or the Web Store */
+    }
+  }
+}
+chrome.commands.onCommand.addListener((command, tab) => {
+  if (command === "activate" && tab?.id) void activate(tab.id);
+});
+
+const SITES_SCRIPT = "charmly-sites";
+const pattern = (origin: string) => `${origin}/*`;
+
+/** Register the content script on the sites you switched on (and still allow). */
+async function syncSites() {
+  const { sites } = (await chrome.storage.local.get("sites")) as { sites?: string[] };
+  const allowed: string[] = [];
+  for (const o of sites ?? []) if (await chrome.permissions.contains({ origins: [pattern(o)] })) allowed.push(o);
+  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [SITES_SCRIPT] });
+  if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: [SITES_SCRIPT] });
+  if (allowed.length) await chrome.scripting.registerContentScripts([{ id: SITES_SCRIPT, matches: allowed.map(pattern), js: ["content.js"], runAt: "document_idle", persistAcrossSessions: true }]);
+  return allowed;
+}
+
+async function setSite(origin: string, on: boolean, tabId?: number) {
+  const { sites } = (await chrome.storage.local.get("sites")) as { sites?: string[] };
+  const next = new Set(sites ?? []);
+  if (on) next.add(origin);
+  else next.delete(origin);
+  await chrome.storage.local.set({ sites: [...next] });
+  if (!on) await chrome.permissions.remove({ origins: [pattern(origin)] }).catch(() => false);
+  const allowed = await syncSites();
+  if (on && tabId && allowed.includes(origin)) await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }).catch(() => {});
+  return allowed;
+}
+
+// Popup helpers: test a Claude key, list and test local models; the tray's "Edit presets…"; sites.
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+  if (msg?.type === "site") {
+    setSite(msg.origin, !!msg.on, msg.tabId)
+      .then((sites) => reply({ ok: true, sites }))
+      .catch((err) => reply({ ok: false, message: String(err?.message ?? err) }));
+    return true;
+  }
+  if (msg?.type === "activate-tab" && msg.tabId) {
+    activate(msg.tabId).then(() => reply({ ok: true }));
+    return true;
+  }
   if (msg?.type === "open-options") {
     void chrome.runtime.openOptionsPage();
     return;
@@ -219,10 +278,14 @@ async function allowLocalModels() {
     ],
   });
 }
-chrome.runtime.onStartup.addListener(() => void allowLocalModels());
+chrome.runtime.onStartup.addListener(() => {
+  void allowLocalModels();
+  void syncSites();
+});
 
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   await allowLocalModels();
+  await syncSites();
   if (reason === "install") {
     const { settings } = await chrome.storage.local.get("settings");
     if (!settings) await chrome.storage.local.set({ settings: normalise({ engine: "demo" }), presets: normalisePresets(null) });
