@@ -1,5 +1,6 @@
 // The suggestion tray: a small glass panel docked above WhatsApp's message box, rendered in a shadow root.
 import { type Engine, type GoalProgress, type Preset, TONES, type Suggestion, type Tone, type Vibe } from "../shared/types";
+import { AUTHOR_URL, CREDIT } from "../shared/brand";
 import css from "./tray.css";
 
 type State =
@@ -226,7 +227,7 @@ export class Tray {
           <button role="menuitemradio" aria-checked="${this.engine === "demo"}" data-act="engine" data-engine="demo" class="${this.engine === "demo" ? "on" : ""}"><span>✨</span>Demo<em>sample suggestions</em></button>
         </div>`
       : "";
-    const brand = `<span class="mark" aria-hidden="true"></span><b>Charmly</b><span class="persona"><button class="engine-chip ${this.engine}" data-act="engine-menu" aria-haspopup="menu" aria-expanded="${this.engineMenu}" title="Switch between on-device and Claude">${esc(engineLabel)} ▾</button>${engineMenu}</span>`;
+    const brand = `<span class="mark" aria-hidden="true"></span><b>Charmly</b><a class="by" href="${AUTHOR_URL}" target="_blank" rel="noopener" title="Charmly is designed and built by Balaji Sri Raj">${CREDIT}</a><span class="persona"><button class="engine-chip ${this.engine}" data-act="engine-menu" aria-haspopup="menu" aria-expanded="${this.engineMenu}" title="Switch between on-device and Claude">${esc(engineLabel)} ▾</button>${engineMenu}</span>`;
     const current = this.presets.find((p) => p.id === this.preset);
     const persona = `<span class="persona">
         <button class="preset-chip ${current ? "set" : ""}" data-act="menu" aria-haspopup="menu" aria-expanded="${this.menu}" title="Voice preset for this chat">${current ? `${esc(current.emoji)} ${esc(current.name)}` : "Voice: none"} ▾</button>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { AUTHOR, AUTHOR_URL } from "../shared/brand";
 import type { LocalModel } from "../shared/ollama";
 import { DEFAULTS, type Engine, normalise, normalisePresets, type Preset, type Settings, type StyleProfile, TONES } from "../shared/types";
 
@@ -261,6 +262,9 @@ function App() {
         {s.engine === "local"
           ? "On-device: your chats are read and answered on this laptop. Nothing is sent anywhere."
           : "Reads only the open chat, replaces names with Them and Me, and never sends anything for you."}
+        <a className="credit" href={AUTHOR_URL} target="_blank" rel="noreferrer">
+          Designed &amp; built by <b>{AUTHOR}</b>
+        </a>
       </footer>
     </main>
   );

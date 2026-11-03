@@ -14,7 +14,9 @@ const manifest = {
   manifest_version: 3,
   name: dev ? "Charmly (dev)" : "Charmly",
   version,
-  description: "Reply suggestions for WhatsApp Web, in your own voice. Tap to insert; you always send.",
+  description: "Reply suggestions for WhatsApp Web, in your own voice. Tap to insert; you always send. By Balaji Sri Raj.",
+  author: "Balaji Sri Raj",
+  homepage_url: "https://balajisriraj.com",
   icons: { 16: "icons/16.png", 32: "icons/32.png", 48: "icons/48.png", 128: "icons/128.png" },
   options_ui: { page: "options.html", open_in_tab: true },
   action: { default_popup: "popup.html", default_title: "Charmly", default_icon: { 16: "icons/16.png", 32: "icons/32.png" } },
@@ -31,8 +33,10 @@ cpSync("src/popup/popup.html", "dist/popup.html");
 cpSync("src/popup/popup.css", "dist/popup.css");
 cpSync("src/options/options.html", "dist/options.html");
 cpSync("src/options/options.css", "dist/options.css");
+cpSync("../LICENSE", "dist/LICENSE");
 
-const common = { bundle: true, target: "chrome120", minify: !dev, sourcemap: dev ? "inline" : false, logLevel: "info", loader: { ".css": "text" }, define: { "process.env.NODE_ENV": dev ? '"development"' : '"production"' } };
+const banner = { js: "/*! Charmly v" + version + " - designed and built by Balaji Sri Raj (https://balajisriraj.com). See LICENSE. */" };
+const common = { banner, legalComments: "inline", bundle: true, target: "chrome120", minify: !dev, sourcemap: dev ? "inline" : false, logLevel: "info", loader: { ".css": "text" }, define: { "process.env.NODE_ENV": dev ? '"development"' : '"production"' } };
 const builds = [
   { ...common, entryPoints: ["src/background/index.ts"], outfile: "dist/background.js", format: "esm" },
   { ...common, entryPoints: ["src/content/index.ts"], outfile: "dist/content.js", format: "iife" },

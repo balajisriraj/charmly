@@ -75,3 +75,5 @@ textarea:focus, input:focus { outline: none; border-color: #ff5fa2; box-shadow: 
 .chats .tag { font-weight: 600; color: var(--ink-2); }
 .chats .note { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 860px) { .layout, .two { grid-template-columns: 1fr; } .presets { position: static; } .chats li { grid-template-columns: 1fr; } }
+header .credit { display: inline-block; margin: 2px 0 6px; font-size: 12.5px; color: #fff; opacity: .9; text-decoration: none; }
+header .credit:hover { opacity: 1; text-decoration: underline; }

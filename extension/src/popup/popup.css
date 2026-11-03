@@ -65,3 +65,5 @@ footer { margin: 12px 4px 0; font-size: 11.5px; color: var(--ink-3); }
 .presets button { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font-family: inherit; font-weight: 600; font-size: 12.5px; color: var(--ink); cursor: pointer; }
 .presets button span { font-size: 16px; }
 .presets button.on { border-color: #ff5fa2; background: #fff5fa; box-shadow: 0 6px 16px -12px #ff5fa2; }
+footer .credit { display: block; margin-top: 8px; color: var(--ink-3); text-decoration: none; }
+footer .credit b { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }

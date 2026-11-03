@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { AUTHOR, AUTHOR_URL } from "../shared/brand";
 import { rulesBlock } from "../shared/prompt";
 import { normalise, normalisePreset, normalisePresets, type Preset, type Settings, STARTER_PRESETS } from "../shared/types";
 
@@ -122,6 +123,9 @@ function App() {
         <span className="logo" aria-hidden="true" />
         <div>
           <h1>Voice presets</h1>
+          <a className="credit" href={AUTHOR_URL} target="_blank" rel="noreferrer">
+            Charmly · designed &amp; built by <b>{AUTHOR}</b>
+          </a>
           <p>Each preset tells Charmly who you are in that kind of chat, how you talk, and what it must always or never say. Switch presets from the tray in any chat; Charmly remembers your choice per chat.</p>
         </div>
         <span className={`saved ${saved ? "on" : ""}`}>{saved ? "Saved ✓" : "Saving…"}</span>

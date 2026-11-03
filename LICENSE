@@ -1,0 +1,21 @@
+Charmly
+Copyright (c) 2026 Balaji Sri Raj. All rights reserved.
+https://balajisriraj.com
+
+Charmly was designed and built by Balaji Sri Raj.
+
+You may read this source code, and build and run Charmly for your own personal, non-commercial use.
+
+Any copy, modification, fork or redistribution of Charmly, in source or built form, must:
+
+  1. keep this LICENSE file, unchanged;
+  2. keep the "by Balaji Sri Raj" credit visible in the user interface wherever it appears in the
+     original (the suggestion tray, the popup and the voice-presets page), with its link to
+     https://balajisriraj.com;
+  3. keep the author and copyright notices in the manifest and at the top of the built files.
+
+You may not remove, hide or alter the credit, present Charmly or a derivative as someone else's work,
+or use it commercially, without written permission from Balaji Sri Raj.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. IN NO EVENT SHALL
+THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE.

@@ -191,6 +191,10 @@ extension/
   build.mjs        esbuild → MV3 bundle; --dev also allows localhost for the test page
 ```
 
+## Credit and licence
+
+Charmly is designed and built by [Balaji Sri Raj](https://balajisriraj.com). The credit appears in the tray, the popup, the presets page, the extension's manifest and the top of every built file. You're welcome to read the code and run Charmly for yourself. Copies and forks must keep that credit visible and may not be used commercially without permission. See [LICENSE](LICENSE).
+
 ---
 
 Part of [the Lab](https://balajisriraj.com/#lab), ten agentic products by [Balaji Sri Raj](https://balajisriraj.com).

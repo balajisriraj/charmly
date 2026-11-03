@@ -66,6 +66,7 @@ try {
 
   console.log("Charmly end to end");
   check(await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.pill") !== null), "docks as a small pill above the message box");
+  check(await tray(() => { const a = document.querySelector("charmly-tray").shadowRoot.querySelector("a.by"); return a?.textContent === "by Balaji Sri Raj" && a.href.startsWith("https://balajisriraj.com"); }), "credits Balaji Sri Raj in the tray");
   const sentBefore = await outgoing();
 
   // A new incoming message triggers suggestions automatically.
