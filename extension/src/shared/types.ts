@@ -126,9 +126,12 @@ export type StyleProfile = {
 };
 
 // Messages between the content script, the background worker and the popup.
-export type SuggestRequest = { type: "suggest"; id: string; chat: ChatMessage[]; tone: Tone; draft?: string; note?: string; preset?: string };
+/** Where the person quietly wants this chat to go, and how close it is: 1 far off, 2 getting close, 3 ready. */
+export type GoalProgress = { stage: 1 | 2 | 3; step: string };
+export type SuggestRequest = { type: "suggest"; id: string; chat: ChatMessage[]; tone: Tone; draft?: string; note?: string; preset?: string; goal?: string };
 export type StreamEvent =
   | { type: "vibe"; id: string; vibe: Vibe }
+  | { type: "goal"; id: string; goal: GoalProgress }
   | { type: "suggestion"; id: string; suggestion: Suggestion }
   | { type: "done"; id: string; dropped: number; ms: number }
   | { type: "error"; id: string; message: string };

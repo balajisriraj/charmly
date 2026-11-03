@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { demo } from "../src/shared/demo";
 import { LineParser } from "../src/shared/parse";
-import { buildPrompt } from "../src/shared/prompt";
+import { buildPrompt, lineup } from "../src/shared/prompt";
 import { check } from "../src/shared/safety";
 import { describe as describeStyle, profile } from "../src/shared/style";
 import type { Suggestion, Vibe } from "../src/shared/types";
@@ -21,7 +21,7 @@ describe("stream parser", () => {
     p.push("garbage line\n3|direct|congrats!");
     p.end();
     expect(vibes[0]).toEqual({ mood: "excited", intent: "sharing good news", language: "English + Tamil", boundary: false });
-    expect(out.map((x) => x.text)).toEqual(["that's amazing!! so proud", "okay treat | on me | obviously", "congrats!"]);
+    expect(out.map((x) => x.text)).toEqual(["that's amazing!! so proud", "okay treat", "congrats!"]);
     expect(out[1].why).toBe("fun");
   });
 });
@@ -65,7 +65,22 @@ describe("prompt and demo", () => {
   it("labels speakers without names and respects the flirty switch", () => {
     const p = buildPrompt(chat, "warm", false, null);
     expect(p).toContain("Them: are you free tonight");
-    expect(p).toContain("flirty is switched off");
+    expect(p).toContain("Flirty is switched off");
+  });
+  it("names three tones with the chosen one first, keeping flirty in flirt mode", () => {
+    expect(lineup("direct", true)).toEqual(["direct", "flirty", "warm"]);
+    expect(lineup("warm", true)).toEqual(["warm", "flirty", "playful"]);
+    expect(lineup("flirty", true)).toEqual(["flirty", "warm", "playful"]);
+    expect(lineup("direct", false)).toEqual(["direct", "warm", "playful"]);
+    expect(lineup("flirty", false)).toEqual(["warm", "playful", "direct"]);
+    expect(buildPrompt(chat, "direct", true, null)).toContain("option 1 direct");
+  });
+  it("in flirt mode every tone chip leads its own suggestions", () => {
+    for (const tone of ["warm", "playful", "flirty", "direct"] as const) {
+      const out = demo(chat, tone, true).suggestions;
+      expect(out).toHaveLength(3);
+      expect(out[0].tone).toBe(tone);
+    }
   });
   it("demo suggestions lead with the chosen tone and back off when asked", () => {
     expect(demo(chat, "playful", false).suggestions[0].tone).toBe("playful");
@@ -130,5 +145,58 @@ describe("voice presets", () => {
     expect(normalisePresets(null).map((p) => p.name)).toEqual(["Friends", "Work", "Family", "Dating"]);
     const [p] = normalisePresets([{ id: "x", name: "", always: ["  a  ", ""], never: "nope" }]);
     expect(p).toMatchObject({ id: "x", name: "Untitled", always: ["a"], never: [], blocked: [] });
+  });
+});
+
+describe("steer toward a goal", () => {
+  const chat = [
+    { speaker: "them" as const, text: "haha that movie was so good" },
+    { speaker: "me" as const, text: "right?? the ending!" },
+    { speaker: "them" as const, text: "are you free this weekend?" },
+    { speaker: "me" as const, text: "maybe, why?" },
+  ];
+  it("puts the goal in the prompt, but not when polishing a draft", () => {
+    const p = buildPrompt(chat, "warm", true, null, undefined, null, undefined, undefined, "ask them out for coffee");
+    expect(p).toContain('<goal>\nThe person wants this conversation to eventually get to: "ask them out for coffee"');
+    expect(p).toContain("no tricks");
+    expect(buildPrompt(chat, "warm", true, null, "hey", null, undefined, undefined, "ask them out")).not.toContain("<goal>");
+  });
+  it("parses the GOAL line, loosely", () => {
+    const goals: unknown[] = [];
+    const p = new LineParser(() => {}, () => {}, 3, (g) => goals.push(g));
+    p.push("VIBE|happy|making plans|English|no\nGOAL|2|open the topic lightly\nGoal: stage 3 | ask it\n");
+    p.end();
+    expect(goals).toEqual([{ stage: 2, step: "open the topic lightly" }, { stage: 3, step: "ask it" }]);
+  });
+  it("demo steers its last option and pauses when they want space", () => {
+    const out = demo(chat, "warm", false, undefined, "ask them out for coffee");
+    expect(out.goal?.stage).toBe(3);
+    expect(out.suggestions[2].why).toContain("goal");
+    expect(demo([{ speaker: "them", text: "so tired, talk later" }], "warm", false, undefined, "ask them out").goal).toBeUndefined();
+  });
+});
+
+describe("filter and parser edge cases", () => {
+  const calm = { mood: "happy", intent: "plans", language: "English", boundary: false };
+  it("allows 'crazy' about a plan but not about a person", () => {
+    expect(check(s("up for something crazy tonight?"), calm, true).ok).toBe(true);
+    expect(check(s("you're crazy"), calm, true).ok).toBe(false);
+  });
+  it("reads a tone line with the reply on the next line", () => {
+    const out: Suggestion[] = [];
+    const p = new LineParser(() => {}, (x) => out.push(x));
+    p.push("1|playful\nfree to be a social robot tonight!\n2|flirty|sounds like a date 😊|fun\n");
+    p.end();
+    expect(out.map((x) => `${x.tone}:${x.text}`)).toEqual(["playful:free to be a social robot tonight!", "flirty:sounds like a date 😊"]);
+  });
+});
+
+describe("extra fields", () => {
+  it("keeps a small model's extra label out of the reply", () => {
+    const out: Suggestion[] = [];
+    const p = new LineParser(() => {}, (x) => out.push(x));
+    p.push("1|warm|no rush, tomorrow works|Friendly|gives space\n");
+    p.end();
+    expect(out[0]).toMatchObject({ text: "no rush, tomorrow works", why: "gives space" });
   });
 });

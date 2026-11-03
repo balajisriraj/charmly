@@ -130,9 +130,80 @@ try {
     await page.screenshot({ path: resolve(ROOT, "../docs/suggestions-dark.png") });
   }
 
-  // On-device engine: switch through the extension's own storage, then trigger a reply.
   const sw = browser.targets().find((t) => t.type() === "service_worker");
   const extId = new URL(sw.url()).host;
+  const setSettings = async (patch) => {
+    const p = await browser.newPage();
+    await p.goto(`chrome-extension://${extId}/popup.html`);
+    await p.evaluate(async (patch) => {
+      const { settings } = await chrome.storage.local.get("settings");
+      await chrome.storage.local.set({ settings: { ...settings, ...patch } });
+    }, patch);
+    await p.close();
+    await page.bringToFront();
+    await sleep(150);
+  };
+  const root = (fn, arg) => page.evaluate(fn, arg);
+  const clickTone = (label) => root((l) => [...document.querySelector("charmly-tray").shadowRoot.querySelectorAll(".tones button")].find((b) => b.textContent.includes(l)).click(), label);
+  const leadAfter = async (label) => {
+    await clickTone(label);
+    await sleep(50);
+    await waitCards(3);
+    return root(() => ({
+      lead: document.querySelector("charmly-tray").shadowRoot.querySelector(".tag")?.textContent,
+      chip: document.querySelector("charmly-tray").shadowRoot.querySelector(".tones button.on")?.textContent.trim(),
+    }));
+  };
+
+  // Flirt mode, with Flirty as the saved lead: every chip still leads its own suggestions, and the chip sticks.
+  await setSettings({ flirty: true, tone: "flirty" });
+  await page.evaluate(() => window.chat.receive("we should get drinks this weekend 😏"));
+  await waitCards(3);
+  for (const [label, tone] of [["Warm", "warm"], ["Direct", "direct"], ["Flirty", "flirty"]]) {
+    const r = await leadAfter(label);
+    check(r.lead === tone && r.chip?.includes(label), `flirt mode: ${label} leads and stays selected (${r.lead}, chip ${r.chip})`);
+  }
+
+  // Typing your own reply while suggestions are open offers Polish right there.
+  await page.evaluate(() => {
+    const box = document.querySelector("[contenteditable]");
+    box.focus();
+    document.execCommand("insertText", false, "sure, saturday works");
+  });
+  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".draft-bar"), { timeout: 3000 }).catch(() => {});
+  check(await root(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.ready .draft-bar")), "typing while suggestions are open offers Polish");
+  await root(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".draft-bar [data-act=polish]").click());
+  await waitCards(3);
+  const polished = await cards();
+  check(polished.every((t) => /saturday/i.test(t)) && (await root(() => !document.querySelector("charmly-tray").shadowRoot.querySelector(".draft-bar"))), "polishes that draft, then hides the offer");
+
+  // Steer: a quiet goal for the chat. Suggestions plan toward it and the tray shows how close it is.
+  await page.evaluate(() => document.querySelector("[contenteditable]").replaceChildren());
+  await root(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".goal-btn").click());
+  await root(() => {
+    const r = document.querySelector("charmly-tray").shadowRoot;
+    r.querySelector(".goal-edit [data-act=goal-example]").click();
+    r.querySelector("[data-act=save-goal]").click();
+  });
+  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".goal-bar .steps i.on"), { timeout: 10000 }).catch(() => {});
+  await waitCards(3);
+  const bar = await root(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".goal-bar")?.textContent.replace(/\s+/g, " ").trim() ?? "");
+  check(/coffee/.test(bar) && /next:/.test(bar), `shows the goal and the next step ("${bar}")`);
+  const whys = await root(() => [...document.querySelector("charmly-tray").shadowRoot.querySelectorAll(".card .why")].map((e) => e.textContent));
+  check(whys.some((w) => /goal/.test(w)), "a suggestion moves toward the goal");
+  if (SHOTS) {
+    await sleep(500);
+    await page.screenshot({ path: resolve(ROOT, "../docs/steer.png") });
+  }
+  await page.evaluate(() => window.chat.receive("honestly so tired, talk later"));
+  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".goal-bar.paused"), { timeout: 10000 }).catch(() => {});
+  check(await root(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".goal-bar.paused")), "pauses the goal when they want space");
+  await root(() => document.querySelector("charmly-tray").shadowRoot.querySelector("[data-act=goal-done]").click());
+  await sleep(150);
+  check(await root(() => !document.querySelector("charmly-tray").shadowRoot.querySelector(".goal-bar")), "Done ✓ stops steering");
+  await setSettings({ flirty: false, tone: "warm" });
+
+  // On-device engine: switch through the extension's own storage, then trigger a reply.
   const popupPage = await browser.newPage();
   await popupPage.goto(`chrome-extension://${extId}/popup.html`);
   await popupPage.evaluate(async (ollamaUrl, ollamaModel) => {

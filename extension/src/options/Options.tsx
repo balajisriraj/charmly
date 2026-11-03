@@ -58,11 +58,13 @@ function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [chatPresets, setChatPresets] = useState<Record<string, string>>({});
+  const [goals, setGoals] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(true);
   const loaded = useRef(false);
 
   useEffect(() => {
-    chrome.storage.local.get(["presets", "settings", "chatNotes", "chatPresets"]).then(({ presets, settings, chatNotes, chatPresets }) => {
+    chrome.storage.local.get(["presets", "settings", "chatNotes", "chatPresets", "chatGoals"]).then(({ presets, settings, chatNotes, chatPresets, chatGoals }) => {
+      setGoals((chatGoals as Record<string, string>) ?? {});
       const list = normalisePresets(presets);
       setPresets(list);
       setSelected(new URLSearchParams(location.search).get("preset") ?? list[0]?.id ?? "");
@@ -103,13 +105,16 @@ function App() {
   const forgetChat = (chat: string) => {
     const n = { ...notes };
     const c = { ...chatPresets };
+    const g = { ...goals };
     delete n[chat];
     delete c[chat];
+    delete g[chat];
     setNotes(n);
     setChatPresets(c);
-    chrome.storage.local.set({ chatNotes: n, chatPresets: c });
+    setGoals(g);
+    chrome.storage.local.set({ chatNotes: n, chatPresets: c, chatGoals: g });
   };
-  const chats = [...new Set([...Object.keys(notes), ...Object.keys(chatPresets)])];
+  const chats = [...new Set([...Object.keys(notes), ...Object.keys(chatPresets), ...Object.keys(goals)])];
 
   return (
     <main>
@@ -224,7 +229,7 @@ function App() {
       {chats.length > 0 && (
         <section className="card chats">
           <h2>Your chats</h2>
-          <p className="hint">Presets and notes you set from the tray. Chat names are stored only in this browser.</p>
+          <p className="hint">Presets, notes and 🎯 goals you set from the tray. Chat names are stored only in this browser.</p>
           <ul>
             {chats.map((c) => {
               const p = presets.find((x) => x.id === chatPresets[c]);
@@ -232,7 +237,11 @@ function App() {
                 <li key={c}>
                   <b>{c}</b>
                   <span className="tag">{p ? `${p.emoji} ${p.name}` : c in chatPresets ? "No preset" : "Default"}</span>
-                  <span className="note">{notes[c] ?? ""}</span>
+                  <span className="note">
+                    {goals[c] ? `🎯 ${goals[c]}` : ""}
+                    {goals[c] && notes[c] ? " · " : ""}
+                    {notes[c] ?? ""}
+                  </span>
                   <button className="link" onClick={() => forgetChat(c)}>
                     Forget
                   </button>

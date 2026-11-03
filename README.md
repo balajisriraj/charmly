@@ -11,8 +11,9 @@ Charmly is a Chrome extension for WhatsApp Web. When a new message arrives in th
 - **It just appears.** A new incoming message triggers suggestions automatically after a short pause (people often send several messages in a row). They stream in one by one, so the first option shows almost immediately.
 - **A read of the vibe.** "excited · sharing news · English + Tamil". If the other person seems tired or wants space, Charmly says so, keeps every option gentle and switches flirty off.
 - **Your voice, learnt locally.** Charmly builds a small style profile from your own sent messages: typical length, emoji habits, lowercase or not, your "haha"s and "da"s. Only that summary is kept, it's visible in the popup, and you can clear it with one click.
-- **Tones on tap.** Warm, Playful, Direct, and Flirty (opt-in) chips change which kind of reply leads.
-- **Polish my draft.** Start typing your own reply and Charmly offers to polish it in your voice.
+- **Tones on tap.** Warm, Playful, Direct, and Flirty (opt-in) chips change which kind of reply leads. Charmly names the three tones to write, in order, so the one you tap always comes first, and in flirt mode a flirty option stays in the mix.
+- **Steer toward what you want to say.** Some things are better reached than blurted: asking someone out, asking for money back, telling a friend you're moving. Tap 🎯, write the goal, and every suggestion still answers what they said while moving one natural step closer. The tray shows how close the chat is and the next step. It pauses itself if they want space. [More below](#steer).
+- **Polish my draft.** Start typing your own reply, whether the tray is tucked away or showing suggestions, and Charmly offers to polish it in your voice.
 - **Keyboard first.** `Alt+1/2/3` inserts a suggestion, `Alt+R` regenerates, `Alt+P` polishes your draft, `Esc` tucks the tray away.
 - **Voice presets.** Tell Charmly who you are and how you talk in each kind of chat: what to always do, what never to do, and words it must never use. Four editable starters ship (😎 Friends, 💼 Work, 🏡 Family, 💫 Dating), and you can add your own. Switch presets from a chip in the tray. Charmly remembers the choice per chat, and ✎ adds a note for that chat ("my manager: keep it brief").
 - **Three engines, switchable in the chat.** The engine chip in the tray ("💻 llama3.2:3b" or "☁ Claude") opens a menu of your installed local models, plus Claude and Demo. **On-device** runs a small model on your laptop through [Ollama](https://ollama.com), so your chats never leave the machine. **Claude** gives the best quality with your Anthropic key. **Demo** lets you try the experience with built-in samples.
@@ -72,6 +73,21 @@ Each preset is your voice for one kind of chat:
 
 The editor shows exactly what Charmly adds to each request. A chat uses the preset you picked for it in the tray, or your default. The preset and any chat note reach Claude, the on-device model and the filter alike. Chat names, presets and notes are stored only in your browser.
 
+## Steer
+
+![Steering a chat toward asking them out for coffee](docs/steer.jpg)
+
+A goal is a quiet instruction for one chat, like "ask them out for coffee". With one set, Claude plans a path over the next few exchanges:
+1. find common ground;
+2. open the topic;
+3. say it, only once the chat is ready.
+
+Each reply still answers what was just said and moves one step, not three. Before the replies, Claude writes a `GOAL|stage|next step` line, which the tray shows as a three-step bar: "getting close · next: open the topic lightly". Each card's *why* says how it moves toward the goal.
+
+Steering is honest by design. The prompt rules out tricks, false pretexts, guilt and pressure. When the vibe says they want space, the bar turns amber and the replies just answer kindly. Tap **Done ✓** when you've said it.
+
+Small on-device models lose the output format under long instructions. On-device, Charmly sends a two-line version of the goal and judges progress itself from how long and warm the chat is, the same way it reads the vibe. Goals are stored per chat in your browser and listed on the presets page.
+
 ## On-device with Ollama
 
 ```bash
@@ -85,7 +101,7 @@ In Charmly's popup choose **On-device**. It lists the models you've pulled, pick
 Small models need more help than Claude, so the on-device path is tuned for them:
 
 - **A shorter prompt with one worked example.** Small models copy an example far more reliably than they follow rules.
-- **A forgiving parser.** It handles what models actually emit: echoed templates (`1|tone|reply|why`), un-numbered `Warm: …` lines, a vibe written as a numbered line, `**bold**` numbering, and `<think>` blocks from reasoning models (stripped even when the tags are split across stream chunks). It stops at three options, and if nothing parses it salvages plain lines.
+- **A forgiving parser.** It handles what models actually emit: echoed templates (`1|tone|reply|why`), un-numbered `Warm: …` lines, a vibe written as a numbered line, `**bold**` numbering, and a tone on one line with the reply on the next, extra label fields, `<think>` blocks from reasoning models (stripped even when the tags are split across stream chunks). It stops at three options, and if nothing parses it salvages plain lines.
 - **A local safety floor.** Small models often skip the vibe line, so Charmly reads the last message itself, instantly. If either that read or the model sees the other person pulling back, flirty and pushy options stay off. The same floor applies to Claude.
 - **No setup surprises.** By default Ollama rejects chat requests from browser extensions, so they'd fail unless you restart it with `OLLAMA_ORIGINS`. Instead, Charmly adds a `declarativeNetRequest` rule that removes the `Origin` header only on requests Charmly itself sends to localhost (`initiatorDomains` is Charmly's own ID, so no web page can use it). Ollama then treats them like a local `curl`.
 
@@ -133,6 +149,15 @@ pnpm e2e                      # the real extension in Chrome, on a local chat pa
   ✓ keeps every option gentle (warm, playful, direct)
   ✓ tone chips change the lead option (playful)
   ✓ follows the dark theme
+  ✓ flirt mode: Warm leads and stays selected (warm, chip ☀️ Warm)
+  ✓ flirt mode: Direct leads and stays selected (direct, chip ➜ Direct)
+  ✓ flirt mode: Flirty leads and stays selected (flirty, chip 💫 Flirty)
+  ✓ typing while suggestions are open offers Polish
+  ✓ polishes that draft, then hides the offer
+  ✓ shows the goal and the next step ("🎯 ask them out for coffee ready to say it · next: say it, kindly and clearly")
+  ✓ a suggestion moves toward the goal
+  ✓ pauses the goal when they want space
+  ✓ Done ✓ stops steering
   ✓ lists local models (llama3.2:3b)
   ✓ on-device engine streams suggestions
   ✓ on-device replies (3): "okay, let's not push you today, take a rest" · "snooze fest planned 😴👍" · "no worries, sleep tight, we can catch up soon"

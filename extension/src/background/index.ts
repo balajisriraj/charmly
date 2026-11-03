@@ -2,7 +2,7 @@
 // stream text → line parser → safety filter → tray.
 //   claude: Anthropic's API with your key        local: Ollama on this laptop        demo: built-in samples
 import Anthropic from "@anthropic-ai/sdk";
-import { demo, quickVibe } from "../shared/demo";
+import { demo, goalFloor, quickVibe } from "../shared/demo";
 import { listModels, OllamaError, streamChat } from "../shared/ollama";
 import { LineParser } from "../shared/parse";
 import { buildPrompt, LOCAL_SYSTEM, SYSTEM } from "../shared/prompt";
@@ -55,10 +55,11 @@ async function run(req: SuggestRequest, post: (e: StreamEvent) => void, signal: 
   const done = () => post({ type: "done", id: req.id, dropped, ms: Math.round(performance.now() - started) });
 
   if (settings.engine === "demo") {
-    const out = demo(req.chat, req.tone, settings.flirty, req.draft);
+    const out = demo(req.chat, req.tone, settings.flirty, req.draft, req.goal);
     await sleep(350);
     vibe = out.vibe;
     post({ type: "vibe", id: req.id, vibe });
+    if (out.goal) post({ type: "goal", id: req.id, goal: out.goal });
     for (const s of out.suggestions) {
       if (signal.aborted) return;
       await sleep(260);
@@ -81,14 +82,19 @@ async function run(req: SuggestRequest, post: (e: StreamEvent) => void, signal: 
       parsed++;
       emit(s);
     },
+    3,
+    (goal) => post({ type: "goal", id: req.id, goal }),
   );
-  const prompt = buildPrompt(req.chat, req.tone, settings.flirty, style, req.draft, preset, req.note, preset?.name);
+  // When they seem to want space, don't even ask for a flirty line: the filter would only drop it.
+  const prompt = buildPrompt(req.chat, req.tone, settings.flirty && !floor.boundary, style, req.draft, preset, req.note, preset?.name, req.goal, settings.engine === "local");
 
   if (settings.engine === "local") {
     if (!settings.ollamaModel) throw new OllamaError("Pick an on-device model in Charmly's settings.");
     // Small models often skip the vibe line, so show the local read straight away; the model's can replace it.
     vibe = floor;
     post({ type: "vibe", id: req.id, vibe });
+    const progress = req.draft ? undefined : goalFloor(req.chat, req.goal);
+    if (progress) post({ type: "goal", id: req.id, goal: progress });
     await streamChat({ url: settings.ollamaUrl, model: settings.ollamaModel, system: LOCAL_SYSTEM, prompt, signal }, (t) => {
       raw += t;
       parser.push(t);

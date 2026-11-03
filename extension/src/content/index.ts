@@ -3,7 +3,7 @@
 import { profile } from "../shared/style";
 import { DEFAULTS, normalise, normalisePresets, type Settings, type StreamEvent, type StyleProfile, type Tone } from "../shared/types";
 import { Tray } from "./tray";
-import { WhatsApp } from "./whatsapp";
+import { same, WhatsApp } from "./whatsapp";
 
 const wa = new WhatsApp();
 let settings: Settings = { ...DEFAULTS };
@@ -14,15 +14,20 @@ let lastChat: string | null = null;
 let dismissedFor: string | null = null; // the message the user closed the tray on
 let pending: number | undefined;
 let lastDraft = false;
+let polishedFrom = ""; // the draft the open suggestions were polished from
 
 let chatPresets: Record<string, string> = {};
 let chatNotes: Record<string, string> = {};
+let chatGoals: Record<string, string> = {};
 
 /** Load this chat's preset and note into the tray. Chat names never leave the browser. */
 function applyChat() {
   const chat = wa.chat() ?? "";
   tray.preset = chat in chatPresets ? chatPresets[chat] : settings.preset;
   tray.note = chatNotes[chat] ?? "";
+  const goal = chatGoals[chat] ?? "";
+  if (goal !== tray.goal) tray.progress = null;
+  tray.goal = goal;
 }
 
 const tray = new Tray({
@@ -52,6 +57,15 @@ const tray = new Tray({
     else delete chatNotes[chat];
     await chrome.storage.local.set({ chatNotes });
     if (tray.open) request(tray.tone);
+  },
+  saveGoal: async (goal) => {
+    const chat = wa.chat();
+    if (!chat) return;
+    chatGoals = { ...chatGoals };
+    if (goal) chatGoals[chat] = goal;
+    else delete chatGoals[chat];
+    await chrome.storage.local.set({ chatGoals });
+    if (goal && (tray.open || wa.messages(1).length)) request(tray.tone);
   },
   editPresets: () => void chrome.runtime.sendMessage({ type: "open-options" }),
   suggest: (tone) => request(tone),
@@ -83,8 +97,14 @@ async function put(text: string, index?: number) {
   });
 }
 
+/** Settings the tray mirrors. The tone is only reset when the saved default changes, so a chip you tap sticks. */
+function adopt(next: Settings) {
+  if (next.tone !== settings.tone || tray.tone === "flirty" && !next.flirty) tray.tone = next.flirty || next.tone !== "flirty" ? next.tone : "warm";
+  settings = next;
+}
+
 function sync() {
-  tray.tone = settings.tone;
+  if (!settings.flirty && tray.tone === "flirty") tray.tone = "warm";
   tray.flirty = settings.flirty;
   tray.engine = settings.engine;
   tray.model = settings.ollamaModel;
@@ -101,17 +121,23 @@ function request(tone: Tone, draft?: string) {
   const id = crypto.randomUUID();
   current = id;
   tray.tone = tone;
+  polishedFrom = draft ?? "";
+  tray.typing = false;
   tray.set({ kind: "loading", vibe: null, suggestions: [], polishing: !!draft });
   sync();
   port.onMessage.addListener((e: StreamEvent) => {
     if (e.id !== current) return;
     if (e.type === "vibe") tray.vibe(e.vibe);
+    else if (e.type === "goal") {
+      tray.progress = e.goal;
+      tray.refresh();
+    }
     else if (e.type === "suggestion") tray.add(e.suggestion);
     else if (e.type === "done") tray.finish(e.dropped);
     else if (e.type === "error") tray.set({ kind: "error", message: e.message });
     sync();
   });
-  port.postMessage({ type: "suggest", id, chat, tone, draft: draft || undefined, preset: tray.preset, note: tray.note || undefined });
+  port.postMessage({ type: "suggest", id, chat, tone, draft: draft || undefined, preset: tray.preset, note: tray.note || undefined, goal: tray.goal || undefined });
 }
 
 /** Learn the user's style from their own sent messages in the open chat. Only a summary is stored. */
@@ -148,12 +174,18 @@ function tick() {
       pending = window.setTimeout(() => request(tray.tone), 700);
     }
   }
-  if (!tray.open) {
-    const hasDraft = !!wa.draft();
-    if (hasDraft !== lastDraft) {
-      lastDraft = hasDraft;
-      tray.set({ kind: "pill", draft: hasDraft });
+  const text = wa.draft();
+  if (tray.open) {
+    // Typing your own reply while suggestions are up: offer to polish it, but not for a suggestion you just
+    // inserted, or for the draft these suggestions already polished.
+    const typing = !!text && !same(text, polishedFrom) && !tray.suggestions.some((x) => same(x.text, text));
+    if (typing !== tray.typing) {
+      tray.typing = typing;
+      tray.refresh();
     }
+  } else if (!!text !== lastDraft) {
+    lastDraft = !!text;
+    tray.set({ kind: "pill", draft: lastDraft });
   }
 }
 
@@ -199,11 +231,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
 });
 
 chrome.storage.onChanged.addListener((changes) => {
-  if (changes.settings) settings = normalise(changes.settings.newValue);
+  if (changes.settings) adopt(normalise(changes.settings.newValue));
   if (changes.presets) tray.presets = normalisePresets(changes.presets.newValue);
   if (changes.chatPresets) chatPresets = (changes.chatPresets.newValue as Record<string, string>) ?? {};
   if (changes.chatNotes) chatNotes = (changes.chatNotes.newValue as Record<string, string>) ?? {};
-  if (changes.settings || changes.presets || changes.chatPresets || changes.chatNotes) {
+  if (changes.chatGoals) chatGoals = (changes.chatGoals.newValue as Record<string, string>) ?? {};
+  if (changes.settings || changes.presets || changes.chatPresets || changes.chatNotes || changes.chatGoals) {
     applyChat();
     sync();
     if (!tray.open) tray.set({ kind: "pill", draft: !!wa.draft() });
@@ -212,8 +245,10 @@ chrome.storage.onChanged.addListener((changes) => {
 
 window.addEventListener("resize", () => tray.place(wa.footer(), wa.dark()));
 
-chrome.storage.local.get(["settings", "presets", "chatPresets", "chatNotes"]).then(({ settings: saved, presets, chatPresets: cp, chatNotes: cn }) => {
+chrome.storage.local.get(["settings", "presets", "chatPresets", "chatNotes", "chatGoals"]).then(({ settings: saved, presets, chatPresets: cp, chatNotes: cn, chatGoals: cg }) => {
+  chatGoals = (cg as Record<string, string>) ?? {};
   settings = normalise(saved);
+  tray.tone = settings.flirty || settings.tone !== "flirty" ? settings.tone : "warm";
   tray.presets = normalisePresets(presets);
   chatPresets = (cp as Record<string, string>) ?? {};
   chatNotes = (cn as Record<string, string>) ?? {};

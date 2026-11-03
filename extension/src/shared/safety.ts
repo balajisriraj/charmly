@@ -3,7 +3,9 @@ import type { Suggestion, Vibe } from "./types";
 // Lines no suggestion should ever contain, whatever the tone.
 const NEVER = [
   /\b(send|show) (me )?(nudes?|pics? of you)\b/i,
-  /\b(stupid|idiot|dumb|ugly|fat|loser|crazy)\b/i,
+  /\b(stupid|idiot|dumb|ugly|loser)\b/i,
+  // About a person, not a plan: "something crazy" is fine, "you're crazy" is not.
+  /\byou('re| are)( so| such an?)? (crazy|fat|psycho)\b/i,
   // Pressure, not ordinary phrasing: "you must be so relieved" is fine, "you must reply" is not.
   /\b(you owe me|or else|why are(n't| you not) you replying|(you have to|you must|you need to) (reply|answer|respond|text me|call me|see me))\b/i,
   /\b(f+u+c+k+|s+h+i+t+|b+i+t+c+h+)\b/i,

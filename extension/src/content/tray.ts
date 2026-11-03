@@ -1,5 +1,5 @@
 // The suggestion tray: a small glass panel docked above WhatsApp's message box, rendered in a shadow root.
-import { type Engine, type Preset, TONES, type Suggestion, type Tone, type Vibe } from "../shared/types";
+import { type Engine, type GoalProgress, type Preset, TONES, type Suggestion, type Tone, type Vibe } from "../shared/types";
 import css from "./tray.css";
 
 type State =
@@ -13,6 +13,7 @@ export type TrayHandlers = {
   loadModels: () => void;
   choosePreset: (id: string) => void;
   saveNote: (note: string) => void;
+  saveGoal: (goal: string) => void;
   editPresets: () => void;
   suggest: (tone: Tone) => void;
   polish: () => void;
@@ -33,6 +34,7 @@ export class Tray {
   private shown = 0; // cards already on screen, so only new ones animate in
   tone: Tone = "warm";
   flirty = false;
+  typing = false; // the person is writing their own reply while suggestions are open
   engine: Engine = "demo";
   model = ""; // the local model in use
   hasKey = false;
@@ -42,8 +44,11 @@ export class Tray {
   presets: Preset[] = [];
   preset = ""; // the preset this chat uses ("" = none)
   note = ""; // this chat's note
+  goal = ""; // where this chat should quietly head
+  progress: GoalProgress | null = null; // the model's latest read of how close it is
   private menu = false;
   private editingNote = false;
+  private editingGoal = false;
 
   constructor(private readonly h: TrayHandlers) {
     this.host = document.createElement("charmly-tray");
@@ -153,8 +158,30 @@ export class Tray {
       this.render();
       return this.h.editPresets();
     }
+    if (act === "goal") {
+      this.editingGoal = !this.editingGoal;
+      this.editingNote = false;
+      this.menu = false;
+      this.render();
+      if (this.editingGoal) this.root.querySelector<HTMLInputElement>(".goal-edit input")?.focus();
+      return;
+    }
+    if (act === "goal-example") {
+      const input = this.root.querySelector<HTMLInputElement>(".goal-edit input");
+      if (input) input.value = target.dataset.text ?? "";
+      return input?.focus();
+    }
+    if (act === "save-goal" || act === "goal-done") {
+      const next = act === "save-goal" ? (this.root.querySelector<HTMLInputElement>(".goal-edit input")?.value.trim() ?? "") : "";
+      if (next !== this.goal) this.progress = null;
+      this.goal = next;
+      this.editingGoal = false;
+      this.h.saveGoal(this.goal);
+      return this.render();
+    }
     if (act === "note") {
       this.editingNote = !this.editingNote;
+      this.editingGoal = false;
       this.menu = false;
       this.render();
       if (this.editingNote) this.root.querySelector<HTMLTextAreaElement>("textarea")?.focus();
@@ -204,6 +231,7 @@ export class Tray {
     const persona = `<span class="persona">
         <button class="preset-chip ${current ? "set" : ""}" data-act="menu" aria-haspopup="menu" aria-expanded="${this.menu}" title="Voice preset for this chat">${current ? `${esc(current.emoji)} ${esc(current.name)}` : "Voice: none"} ▾</button>
         <button class="icon note-btn ${this.note ? "has" : ""}" data-act="note" title="${this.note ? "Edit this chat's note" : "Add a note for this chat"}" aria-label="Chat note">✎</button>
+        <button class="icon goal-btn ${this.goal ? "has" : ""}" data-act="goal" title="${this.goal ? `Steering toward: ${esc(this.goal)}` : "Steer this chat toward something you want to say or ask"}" aria-label="Steer this chat">🎯</button>
         ${this.menu ? `<div class="menu" role="menu">
           ${this.presets.map((p) => `<button role="menuitemradio" aria-checked="${p.id === this.preset}" data-act="preset" data-id="${esc(p.id)}" class="${p.id === this.preset ? "on" : ""}"><span>${esc(p.emoji)}</span>${esc(p.name)}<em>${esc(p.about.slice(0, 48))}${p.about.length > 48 ? "…" : ""}</em></button>`).join("")}
           <button role="menuitemradio" aria-checked="${!this.preset}" data-act="preset" data-id="" class="${!this.preset ? "on" : ""}"><span>○</span>No preset<em>just your learnt style</em></button>
@@ -213,12 +241,19 @@ export class Tray {
     const noteEditor = this.editingNote
       ? `<div class="note-edit"><textarea rows="2" maxlength="400" placeholder="A note for this chat, e.g. 'college friend, roast him freely, Tanglish ok' or 'my manager: keep it formal'">${esc(this.note)}</textarea><button class="ghost polish" data-act="save-note">Save note</button></div>`
       : "";
+    const examples = ["ask them out for coffee", "ask for the money back, gently", "tell them I'm moving to Singapore", "ask for a referral at their company"];
+    const goalEditor = this.editingGoal
+      ? `<div class="goal-edit"><label>🎯 Steer this chat toward… <small>Charmly plans the path over a few messages instead of blurting it out.</small></label>
+          <div class="row"><input maxlength="160" value="${esc(this.goal)}" placeholder="something you want to say or ask, eventually" /><button class="ghost polish" data-act="save-goal">${this.goal ? "Update" : "Start steering"}</button></div>
+          <div class="examples">${examples.map((x) => `<button data-act="goal-example" data-text="${esc(x)}">${esc(x)}</button>`).join("")}</div></div>`
+      : "";
+    const editors = noteEditor + goalEditor;
     let body = "";
 
     if (s.kind === "pill") {
       body = `<div class="pill">${brand}${persona}
         <button class="ghost" data-act="suggest">Suggest replies <kbd>${ALT}R</kbd></button>
-        ${s.draft ? `<button class="ghost polish" data-act="polish">Polish my draft <kbd>${ALT}P</kbd></button>` : ""}</div>${noteEditor}`;
+        ${s.draft ? `<button class="ghost polish" data-act="polish">Polish my draft <kbd>${ALT}P</kbd></button>` : ""}</div>${editors}`;
     } else if (s.kind === "error") {
       body = `<header>${brand}<span class="spacer"></span><button class="x" data-act="close" aria-label="Close">×</button></header>
         <p class="err">${esc(s.message)}</p>`;
@@ -227,6 +262,15 @@ export class Tray {
       const vibe = v
         ? `<div class="vibe ${v.boundary ? "careful" : ""}"><span class="dot"></span>${esc(v.mood)} · ${esc(v.intent)} · ${esc(v.language)}${v.boundary ? '<em>they may want space, keeping it gentle</em>' : ""}</div>`
         : `<div class="vibe loading"><span class="dot"></span><span class="shimmer w40"></span></div>`;
+      const paused = !!v?.boundary;
+      const p = this.progress;
+      const goalBar = this.goal && !s.polishing
+        ? `<div class="goal-bar ${paused ? "paused" : ""}" title="Where you want this chat to go">
+            <span>🎯</span><b>${esc(this.goal)}</b>
+            <span class="steps" aria-label="${p ? `step ${p.stage} of 3` : "planning"}">${[1, 2, 3].map((i) => `<i class="${p && i <= p.stage ? "on" : ""}"></i>`).join("")}</span>
+            <span class="step">${paused ? "paused, they may want space" : p ? `${["far off", "getting close", "ready to say it"][p.stage - 1]}${p.step ? ` · next: ${esc(p.step)}` : ""}` : "planning the path…"}</span>
+            <button class="link" data-act="goal-done" title="Stop steering">Done ✓</button></div>`
+        : "";
       const cards = s.suggestions
         .map(
           (x, i) => `<button class="card ${this.inserted === i ? "done" : ""} ${i >= this.shown ? "new" : ""}" data-act="insert" data-i="${i}">
@@ -241,7 +285,7 @@ export class Tray {
       body = `<header>${brand}${persona}${s.polishing ? '<span class="sub">polishing your draft</span>' : ""}<span class="spacer"></span>${toneBar}
           <button class="icon" data-act="suggest" aria-label="Regenerate" title="Regenerate (${ALT}R)">↻</button>
           <button class="x" data-act="close" aria-label="Close" title="Hide (Esc)">×</button></header>
-        ${noteEditor}${vibe}<div class="cards">${cards}${skeletons}</div>${foot}`;
+        ${editors}${vibe}${goalBar}${this.typing ? `<div class="draft-bar"><span>✍️ Writing your own? Charmly can polish it in your voice.</span><button class="ghost polish" data-act="polish">Polish my draft <kbd>${ALT}P</kbd></button></div>` : ""}<div class="cards">${cards}${skeletons}</div>${foot}`;
     }
     const keep = ["dark", "enter"].filter((c) => this.panel.classList.contains(c));
     this.panel.className = ["tray", s.kind, ...keep].join(" ");
