@@ -154,7 +154,10 @@ try {
   await page.keyboard.press("Escape"); // back to the pill, so the wait below sees the new request, not the old tray
 
   // Voice presets, through the tray: pick Work from the chip menu, then add a note for this chat.
-  const shadow = (sel) => page.evaluateHandle((sel) => document.querySelector("charmly-tray").shadowRoot.querySelector(sel), sel);
+  // Query and click in one step inside the page, so a re-render mid-stream can't detach the node in between.
+  const shadow = (sel) => ({
+    click: () => page.evaluate((sel) => document.querySelector("charmly-tray").shadowRoot.querySelector(sel).click(), sel),
+  });
   await (await shadow(".preset-chip")).click();
   check(await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelectorAll(".menu [data-act=preset]").length >= 5), "preset menu lists the starter presets");
   if (SHOTS) {
@@ -184,9 +187,11 @@ try {
   const localErr = await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".err")?.textContent ?? null);
   check(!localErr, localErr ? `on-device error: ${localErr}` : "on-device engine streams suggestions");
   const localCards = await cards();
-  const badge = await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".demo")?.textContent);
+  const badge = await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".engine-chip")?.textContent ?? "");
   check(localCards.length >= (process.env.OLLAMA_E2E ? 2 : 1), `on-device replies (${localCards.length}): ${localCards.map((t) => `"${t}"`).join(" · ")}`);
-  check(badge === "on-device", `labels the tray on-device (${badge})`);
+  check(badge.includes(OLLAMA_MODEL), `the tray shows the on-device model (${badge.trim()})`);
+
+
   check(await tray(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".vibe.careful")), "keeps the space-aware read on-device");
   if (!process.env.OLLAMA_E2E) {
     const sent = ollamaRequests.at(-1);
@@ -205,6 +210,20 @@ try {
     check(Object.values(remembered.chatPresets ?? {}).includes("work") && Object.values(remembered.chatNotes ?? {}).includes("my manager, keep it brief"), "preset and note are remembered for this chat");
     await page.bringToFront();
   }
+
+  // Switch engines from the tray: open the engine menu, see the local models, pick Demo, then back to local.
+  await (await shadow(".engine-chip")).click();
+  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".engine-menu [data-engine=local]"), { timeout: 10000 });
+  const menuModels = await tray(() => [...document.querySelector("charmly-tray").shadowRoot.querySelectorAll(".engine-menu [data-engine=local]")].map((b) => b.dataset.model));
+  check(menuModels.includes(OLLAMA_MODEL), `the engine menu lists local models (${menuModels.join(", ")})`);
+  await (await shadow('.engine-menu [data-engine="demo"]')).click();
+  await page.waitForFunction(() => /Demo/.test(document.querySelector("charmly-tray").shadowRoot.querySelector(".engine-chip").textContent), { timeout: 5000 });
+  check(true, "switches to Demo from the tray");
+  await (await shadow(".engine-chip")).click();
+  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".engine-menu [data-engine=local]"), { timeout: 10000 });
+  await (await shadow(`.engine-menu [data-model="${OLLAMA_MODEL}"]`)).click();
+  await page.waitForFunction((m) => document.querySelector("charmly-tray").shadowRoot.querySelector(".engine-chip").textContent.includes(m), { timeout: 5000 }, OLLAMA_MODEL);
+  check(true, "and back to the local model");
 
   // The popup, rendered as a page for the screenshot.
   if (SHOTS) {

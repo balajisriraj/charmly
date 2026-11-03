@@ -15,7 +15,7 @@ Charmly is a Chrome extension for WhatsApp Web. When a new message arrives in th
 - **Polish my draft.** Start typing your own reply and Charmly offers to polish it in your voice.
 - **Keyboard first.** `Alt+1/2/3` inserts a suggestion, `Alt+R` regenerates, `Alt+P` polishes your draft, `Esc` tucks the tray away.
 - **Voice presets.** Tell Charmly who you are and how you talk in each kind of chat: what to always do, what never to do, and words it must never use. Four editable starters ship (😎 Friends, 💼 Work, 🏡 Family, 💫 Dating), and you can add your own. Switch presets from a chip in the tray. Charmly remembers the choice per chat, and ✎ adds a note for that chat ("my manager: keep it brief").
-- **Three engines.** **On-device** runs a small model on your laptop through [Ollama](https://ollama.com), so your chats never leave the machine. **Claude** gives the best quality with your Anthropic key. **Demo** lets you try the experience with built-in samples.
+- **Three engines, switchable in the chat.** The engine chip in the tray ("💻 llama3.2:3b" or "☁ Claude") opens a menu of your installed local models, plus Claude and Demo. **On-device** runs a small model on your laptop through [Ollama](https://ollama.com), so your chats never leave the machine. **Claude** gives the best quality with your Anthropic key. **Demo** lets you try the experience with built-in samples.
 - **Native feel.** A glass tray docked above the message box that follows WhatsApp's light or dark theme, measured from the page itself rather than the system setting.
 
 <p align="center"><img src="docs/suggestions-dark.jpg" width="68%" alt="Dark theme" /> &nbsp; <img src="docs/popup.png" width="24%" alt="The popup: switches, tone, API key, demo mode, your voice" /></p>
@@ -138,6 +138,10 @@ pnpm e2e                      # the real extension in Chrome, on a local chat pa
   ✓ on-device replies (3): "okay, let's not push you today, take a rest" · "snooze fest planned 😴👍" · "no worries, sleep tight, we can catch up soon"
   ✓ labels the tray on-device
   ✓ keeps the space-aware read on-device
+  ✓ the tray shows the on-device model (💻 llama3.2:3b ▾)
+  ✓ the engine menu lists local models (llama3.2:3b)
+  ✓ switches to Demo from the tray
+  ✓ and back to the local model
   ✓ preset menu lists the starter presets
   ✓ the chat now shows the Work preset
   ✓ the Work preset's rules reach the model

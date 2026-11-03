@@ -26,6 +26,17 @@ function applyChat() {
 }
 
 const tray = new Tray({
+  chooseEngine: async (engine, model) => {
+    settings = { ...settings, engine, ...(model ? { ollamaModel: model } : {}) };
+    await chrome.storage.local.set({ settings });
+    if (tray.open) request(tray.tone);
+  },
+  loadModels: async () => {
+    const res = await chrome.runtime.sendMessage({ type: "ollama-models", url: settings.ollamaUrl }).catch(() => null);
+    tray.models = res?.ok ? res.models.map((m: { name: string; params: string }) => ({ name: m.name, params: m.params })) : null;
+    tray.modelsError = res?.ok ? "" : (res?.message ?? "Can't reach Ollama.");
+    tray.refresh();
+  },
   choosePreset: async (id) => {
     const chat = wa.chat();
     if (!chat) return;
@@ -75,7 +86,9 @@ async function put(text: string, index?: number) {
 function sync() {
   tray.tone = settings.tone;
   tray.flirty = settings.flirty;
-  tray.badge = settings.engine === "local" ? "on-device" : settings.engine === "demo" ? "demo" : "";
+  tray.engine = settings.engine;
+  tray.model = settings.ollamaModel;
+  tray.hasKey = !!settings.apiKey;
   tray.host.style.display = settings.enabled && wa.main() ? "" : "none";
   tray.place(wa.footer(), wa.dark());
 }

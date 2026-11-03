@@ -1,5 +1,5 @@
 // The suggestion tray: a small glass panel docked above WhatsApp's message box, rendered in a shadow root.
-import { type Preset, TONES, type Suggestion, type Tone, type Vibe } from "../shared/types";
+import { type Engine, type Preset, TONES, type Suggestion, type Tone, type Vibe } from "../shared/types";
 import css from "./tray.css";
 
 type State =
@@ -9,6 +9,8 @@ type State =
   | { kind: "error"; message: string };
 
 export type TrayHandlers = {
+  chooseEngine: (engine: Engine, model?: string) => void;
+  loadModels: () => void;
   choosePreset: (id: string) => void;
   saveNote: (note: string) => void;
   editPresets: () => void;
@@ -31,7 +33,12 @@ export class Tray {
   private shown = 0; // cards already on screen, so only new ones animate in
   tone: Tone = "warm";
   flirty = false;
-  badge = ""; // "demo" or "on-device"
+  engine: Engine = "demo";
+  model = ""; // the local model in use
+  hasKey = false;
+  models: { name: string; params: string }[] | null = null; // installed local models, once loaded
+  modelsError = "";
+  private engineMenu = false;
   presets: Preset[] = [];
   preset = ""; // the preset this chat uses ("" = none)
   note = ""; // this chat's note
@@ -98,6 +105,11 @@ export class Tray {
     if (this.state.kind === "loading") this.set({ kind: "ready", vibe: this.state.vibe, suggestions: this.state.suggestions, dropped, polishing: this.state.polishing });
   }
 
+  /** Re-render with the current state, e.g. after the model list loads. */
+  refresh() {
+    this.render();
+  }
+
   markInserted(i: number) {
     this.inserted = i;
     this.render();
@@ -111,7 +123,23 @@ export class Tray {
     const act = target.dataset.act!;
     if (act === "menu") {
       this.menu = !this.menu;
+      this.engineMenu = false;
       this.editingNote = false;
+      return this.render();
+    }
+    if (act === "engine-menu") {
+      this.engineMenu = !this.engineMenu;
+      this.menu = false;
+      this.editingNote = false;
+      if (this.engineMenu) this.h.loadModels();
+      return this.render();
+    }
+    if (act === "engine") {
+      this.engineMenu = false;
+      const engine = target.dataset.engine as Engine;
+      this.engine = engine;
+      if (target.dataset.model) this.model = target.dataset.model;
+      this.h.chooseEngine(engine, target.dataset.model);
       return this.render();
     }
     if (act === "preset") {
@@ -157,7 +185,21 @@ export class Tray {
     const toneBar = `<div class="tones" role="group" aria-label="Tone">${tones
       .map((t) => `<button data-act="tone" data-tone="${t.id}" class="${t.id === this.tone ? "on" : ""}">${t.emoji} ${t.label}</button>`)
       .join("")}</div>`;
-    const brand = `<span class="mark" aria-hidden="true"></span><b>Charmly</b>${this.badge ? `<span class="demo ${this.badge === "on-device" ? "local" : ""}">${this.badge}</span>` : ""}`;
+    const engineLabel = this.engine === "local" ? `💻 ${this.model || "pick a model"}` : this.engine === "claude" ? "☁ Claude" : "Demo";
+    const models = this.models === null
+      ? `<p class="menu-note">${this.modelsError ? esc(this.modelsError) : "Looking for local models…"}</p>`
+      : this.models.length
+        ? this.models.map((m) => `<button role="menuitemradio" aria-checked="${this.engine === "local" && m.name === this.model}" data-act="engine" data-engine="local" data-model="${esc(m.name)}" class="${this.engine === "local" && m.name === this.model ? "on" : ""}"><span>💻</span>${esc(m.name)}<em>${esc(m.params)} · runs on this laptop</em></button>`).join("")
+        : `<p class="menu-note">No local models yet. Run <code>ollama pull llama3.2:3b</code></p>`;
+    const engineMenu = this.engineMenu
+      ? `<div class="menu engine-menu" role="menu">
+          <p class="menu-head">On-device · private</p>${models}
+          <p class="menu-head">Cloud</p>
+          <button role="menuitemradio" aria-checked="${this.engine === "claude"}" data-act="engine" data-engine="claude" class="${this.engine === "claude" ? "on" : ""}" ${this.hasKey ? "" : "disabled"}><span>☁</span>Claude<em>${this.hasKey ? "best quality, uses your API key" : "add your API key in Charmly's popup"}</em></button>
+          <button role="menuitemradio" aria-checked="${this.engine === "demo"}" data-act="engine" data-engine="demo" class="${this.engine === "demo" ? "on" : ""}"><span>✨</span>Demo<em>sample suggestions</em></button>
+        </div>`
+      : "";
+    const brand = `<span class="mark" aria-hidden="true"></span><b>Charmly</b><span class="persona"><button class="engine-chip ${this.engine}" data-act="engine-menu" aria-haspopup="menu" aria-expanded="${this.engineMenu}" title="Switch between on-device and Claude">${esc(engineLabel)} ▾</button>${engineMenu}</span>`;
     const current = this.presets.find((p) => p.id === this.preset);
     const persona = `<span class="persona">
         <button class="preset-chip ${current ? "set" : ""}" data-act="menu" aria-haspopup="menu" aria-expanded="${this.menu}" title="Voice preset for this chat">${current ? `${esc(current.emoji)} ${esc(current.name)}` : "Voice: none"} ▾</button>
