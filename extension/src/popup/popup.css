@@ -56,3 +56,12 @@ footer { margin: 12px 4px 0; font-size: 11.5px; color: var(--ink-3); }
 .btn:disabled { opacity: .4; }
 .link.inline { display: inline; padding: 0 0 0 4px; }
 .actions .link { padding: 0; }
+.rules { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: #faf7fd; border-radius: 12px; padding: 10px 12px; margin: 4px 0 8px; text-align: left; cursor: pointer; font-family: inherit; color: var(--ink); }
+.rules span { flex: 1; display: flex; flex-direction: column; }
+.rules b { font-size: 13px; }
+.rules i { font-style: normal; color: #db2777; font-weight: 700; }
+.rules:hover { background: #f3ecfa; }
+.presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0 2px; }
+.presets button { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font-family: inherit; font-weight: 600; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.presets button span { font-size: 16px; }
+.presets button.on { border-color: #ff5fa2; background: #fff5fa; box-shadow: 0 6px 16px -12px #ff5fa2; }

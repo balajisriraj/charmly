@@ -15,7 +15,18 @@ const INVENTED = [/\+?\d[\d\s-]{7,}\d/, /[\w.+-]+@[\w-]+\.[\w.]+/, /\b\d{1,5} [A
 export type Verdict = { ok: boolean; text: string; reason?: string };
 
 /** Clean or reject one suggestion. Deterministic, so it can't be talked out of a decision. */
-export function check(s: Suggestion, vibe: Vibe | null, allowFlirty: boolean): Verdict {
+const escapeRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Does the text contain a blocked word or phrase? Whole words only, so "hell" doesn't block "hello". */
+export function blockedIn(text: string, blocked: string[]): string | null {
+  for (const b of blocked) {
+    const word = b.trim();
+    if (word && new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(word)}($|[^\\p{L}\\p{N}])`, "iu").test(text)) return word;
+  }
+  return null;
+}
+
+export function check(s: Suggestion, vibe: Vibe | null, allowFlirty: boolean, blocked: string[] = []): Verdict {
   let text = s.text
     .replace(/\s*[\u2014\u2013]\s*/g, " - ") // house style: plain hyphens, never em or en dashes
     .replace(/^["“](.*)["”]$/, "$1")
@@ -23,6 +34,8 @@ export function check(s: Suggestion, vibe: Vibe | null, allowFlirty: boolean): V
   if (!text) return { ok: false, text, reason: "empty" };
   if (text.length > 400) return { ok: false, text, reason: "too long for a text" };
   if (NEVER.some((r) => r.test(text))) return { ok: false, text, reason: "unkind or crude" };
+  const hit = blockedIn(text, blocked);
+  if (hit) return { ok: false, text, reason: `uses "${hit}", which you blocked` };
   if (INVENTED.some((r) => r.test(text))) return { ok: false, text, reason: "contains contact details" };
   if (/\bas an ai\b|\blanguage model\b/i.test(text)) return { ok: false, text, reason: "breaks character" };
   if (s.tone === "flirty" && (!allowFlirty || vibe?.boundary)) return { ok: false, text, reason: "flirty is off for this chat" };

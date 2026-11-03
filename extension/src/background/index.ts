@@ -7,13 +7,16 @@ import { listModels, OllamaError, streamChat } from "../shared/ollama";
 import { LineParser } from "../shared/parse";
 import { buildPrompt, LOCAL_SYSTEM, SYSTEM } from "../shared/prompt";
 import { check } from "../shared/safety";
-import { normalise, type Settings, type StreamEvent, type StyleProfile, type Suggestion, type SuggestRequest, type Vibe } from "../shared/types";
+import { normalise, normalisePresets, type Preset, type Settings, type StreamEvent, type StyleProfile, type Suggestion, type SuggestRequest, type Vibe } from "../shared/types";
 
 const MODEL = { best: "claude-opus-5-5", fast: "claude-haiku-5-5" };
 
-async function load(): Promise<{ settings: Settings; style: StyleProfile | null }> {
-  const { settings, style } = await chrome.storage.local.get(["settings", "style"]);
-  return { settings: normalise(settings), style: (style as StyleProfile) ?? null };
+async function load(presetId?: string): Promise<{ settings: Settings; style: StyleProfile | null; preset: Preset | null }> {
+  const { settings: raw, style, presets } = await chrome.storage.local.get(["settings", "style", "presets"]);
+  const settings = normalise(raw);
+  const id = presetId ?? settings.preset;
+  const preset = id ? (normalisePresets(presets).find((p) => p.id === id) ?? null) : null;
+  return { settings, style: (style as StyleProfile) ?? null, preset };
 }
 
 function claude(apiKey: string) {
@@ -35,14 +38,14 @@ export function salvage(raw: string): Suggestion[] {
 
 async function run(req: SuggestRequest, post: (e: StreamEvent) => void, signal: AbortSignal) {
   const started = performance.now();
-  const { settings, style } = await load();
+  const { settings, style, preset } = await load(req.preset);
   // A quick local read is the safety floor: if either it or the model sees them pulling back, stay gentle.
   const floor = quickVibe(req.chat);
   let vibe: Vibe | null = null;
   let dropped = 0;
   let shown = 0;
   const emit = (s: Suggestion) => {
-    const verdict = check(s, vibe ?? floor, settings.flirty);
+    const verdict = check(s, vibe ?? floor, settings.flirty, preset?.blocked ?? []);
     if (!verdict.ok) {
       dropped++;
       return;
@@ -79,7 +82,7 @@ async function run(req: SuggestRequest, post: (e: StreamEvent) => void, signal: 
       emit(s);
     },
   );
-  const prompt = buildPrompt(req.chat, req.tone, settings.flirty, style, req.draft);
+  const prompt = buildPrompt(req.chat, req.tone, settings.flirty, style, req.draft, preset, req.note, preset?.name);
 
   if (settings.engine === "local") {
     if (!settings.ollamaModel) throw new OllamaError("Pick an on-device model in Charmly's settings.");
@@ -149,8 +152,12 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
-// Popup helpers: test a Claude key, list and test local models.
+// Popup helpers: test a Claude key, list and test local models; the tray's "Edit presets…".
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+  if (msg?.type === "open-options") {
+    void chrome.runtime.openOptionsPage();
+    return;
+  }
   if (msg?.type === "test-key") {
     claude(msg.apiKey)
       .messages.create({ model: MODEL.fast, max_tokens: 8, messages: [{ role: "user", content: "Say ok." }] })
@@ -208,6 +215,6 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   await allowLocalModels();
   if (reason === "install") {
     const { settings } = await chrome.storage.local.get("settings");
-    if (!settings) await chrome.storage.local.set({ settings: normalise({ engine: "demo" }) });
+    if (!settings) await chrome.storage.local.set({ settings: normalise({ engine: "demo" }), presets: normalisePresets(null) });
   }
 });

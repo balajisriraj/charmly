@@ -14,6 +14,7 @@ Charmly is a Chrome extension for WhatsApp Web. When a new message arrives in th
 - **Tones on tap.** Warm, Playful, Direct, and Flirty (opt-in) chips change which kind of reply leads.
 - **Polish my draft.** Start typing your own reply and Charmly offers to polish it in your voice.
 - **Keyboard first.** `Alt+1/2/3` inserts a suggestion, `Alt+R` regenerates, `Alt+P` polishes your draft, `Esc` tucks the tray away.
+- **Voice presets.** Tell Charmly who you are and how you talk in each kind of chat: what to always do, what never to do, and words it must never use. Four editable starters ship (😎 Friends, 💼 Work, 🏡 Family, 💫 Dating), and you can add your own. Switch presets from a chip in the tray. Charmly remembers the choice per chat, and ✎ adds a note for that chat ("my manager: keep it brief").
 - **Three engines.** **On-device** runs a small model on your laptop through [Ollama](https://ollama.com), so your chats never leave the machine. **Claude** gives the best quality with your Anthropic key. **Demo** lets you try the experience with built-in samples.
 - **Native feel.** A glass tray docked above the message box that follows WhatsApp's light or dark theme, measured from the page itself rather than the system setting.
 
@@ -59,6 +60,17 @@ The tray tells you how many options it held back.
 The adapter includes a health check the popup shows, so if WhatsApp changes its page you see "Can't find the message box" instead of silence.
 
 **Inserting text the way a person would.** WhatsApp's editor keeps its own state, so writing to the DOM directly doesn't stick. Charmly selects the box's content and uses the editor's own input path (`insertText`), with a synthetic paste as a fallback.
+
+## Voice presets
+
+<p align="center"><img src="docs/presets-menu.jpg" width="49%" alt="Switching presets from the tray" /> <img src="docs/presets.jpg" width="49%" alt="The preset editor" /></p>
+
+Each preset is your voice for one kind of chat:
+- **About you & how you talk:** free text in your own words, the strongest guidance.
+- **Always** and **Never:** rules, with one-tap quick rules for the common ones ("Never agree to plans, money or times on my behalf").
+- **Never use these words:** enforced in code by the safety filter, so a suggestion containing one is dropped whatever the model writes.
+
+The editor shows exactly what Charmly adds to each request. A chat uses the preset you picked for it in the tray, or your default. The preset and any chat note reach Claude, the on-device model and the filter alike. Chat names, presets and notes are stored only in your browser.
 
 ## On-device with Ollama
 
@@ -126,6 +138,12 @@ pnpm e2e                      # the real extension in Chrome, on a local chat pa
   ✓ on-device replies (3): "okay, let's not push you today, take a rest" · "snooze fest planned 😴👍" · "no worries, sleep tight, we can catch up soon"
   ✓ labels the tray on-device
   ✓ keeps the space-aware read on-device
+  ✓ preset menu lists the starter presets
+  ✓ the chat now shows the Work preset
+  ✓ the Work preset's rules reach the model
+  ✓ the chat note reaches the model
+  ✓ a word blocked in the preset is never shown
+  ✓ preset and note are remembered for this chat
 ```
 
 By default the on-device checks run against a stand-in that speaks Ollama's API and answers in a deliberately messy small-model format, so CI covers them. `OLLAMA_E2E=http://localhost:11434 OLLAMA_MODEL=llama3.2:3b pnpm e2e` runs them against a real model, which produced the output above.
@@ -137,7 +155,8 @@ extension/
   src/content/     whatsapp.ts (the page adapter) · tray.ts + tray.css (the UI) · index.ts (observer, keys)
   src/background/  the only code that talks to a model (Claude, Ollama or demo)
   src/shared/      parse.ts · safety.ts · style.ts · prompt.ts · ollama.ts · demo.ts · types.ts
-  src/popup/       settings, your voice, health
+  src/popup/       engine, default preset, your voice, health
+  src/options/     the voice-preset editor
   fixtures/        chat.html, the local test page
   e2e/run.mjs      end-to-end checks and README screenshots
   build.mjs        esbuild → MV3 bundle; --dev also allows localhost for the test page

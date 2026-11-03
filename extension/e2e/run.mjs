@@ -142,8 +142,36 @@ try {
   const listed = await popupPage.evaluate((url) => chrome.runtime.sendMessage({ type: "ollama-models", url }), OLLAMA);
   check(listed.ok && listed.models.some((m) => m.name === OLLAMA_MODEL), `lists local models (${listed.ok ? listed.models.map((m) => m.name).join(", ") : listed.message})`);
   await popupPage.close();
+  // Block a word in the Work preset, so the stand-in's first reply ("no stress…") must be held back.
+  const setup = await browser.newPage();
+  await setup.goto(`chrome-extension://${extId}/popup.html`);
+  await setup.evaluate(async () => {
+    const { presets } = await chrome.storage.local.get("presets");
+    await chrome.storage.local.set({ presets: presets.map((p) => (p.id === "work" ? { ...p, blocked: [...p.blocked, "stress"] } : p)) });
+  });
+  await setup.close();
   await page.bringToFront();
   await page.keyboard.press("Escape"); // back to the pill, so the wait below sees the new request, not the old tray
+
+  // Voice presets, through the tray: pick Work from the chip menu, then add a note for this chat.
+  const shadow = (sel) => page.evaluateHandle((sel) => document.querySelector("charmly-tray").shadowRoot.querySelector(sel), sel);
+  await (await shadow(".preset-chip")).click();
+  check(await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelectorAll(".menu [data-act=preset]").length >= 5), "preset menu lists the starter presets");
+  if (SHOTS) {
+    await sleep(300);
+    await page.screenshot({ path: resolve(ROOT, "../docs/presets-menu.png") });
+  }
+  await (await shadow('.menu [data-id="work"]')).click();
+  await sleep(150);
+  check((await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".preset-chip").textContent)).includes("Work"), "the chat now shows the Work preset");
+  await (await shadow(".note-btn")).click();
+  await page.evaluate(() => {
+    const t = document.querySelector("charmly-tray").shadowRoot.querySelector(".note-edit textarea");
+    t.value = "my manager, keep it brief";
+  });
+  await (await shadow('[data-act="save-note"]')).click();
+  await sleep(200);
+
   await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.pill"));
   await page.evaluate(() => window.chat.receive("honestly so tired today, can we talk tomorrow"));
   await page.waitForFunction(
@@ -157,10 +185,26 @@ try {
   check(!localErr, localErr ? `on-device error: ${localErr}` : "on-device engine streams suggestions");
   const localCards = await cards();
   const badge = await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".demo")?.textContent);
-  check(localCards.length >= 2, `on-device replies (${localCards.length}): ${localCards.map((t) => `"${t}"`).join(" · ")}`);
+  check(localCards.length >= (process.env.OLLAMA_E2E ? 2 : 1), `on-device replies (${localCards.length}): ${localCards.map((t) => `"${t}"`).join(" · ")}`);
   check(badge === "on-device", `labels the tray on-device (${badge})`);
   check(await tray(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".vibe.careful")), "keeps the space-aware read on-device");
-  if (!process.env.OLLAMA_E2E) check(ollamaRequests.at(-1)?.model === "tiny:1b" && ollamaRequests.at(-1)?.stream === true, "sent a streaming chat request to Ollama");
+  if (!process.env.OLLAMA_E2E) {
+    const sent = ollamaRequests.at(-1);
+    check(sent?.model === "tiny:1b" && sent?.stream === true, "sent a streaming chat request to Ollama");
+    const prompt = sent?.messages?.[1]?.content ?? "";
+    check(prompt.includes("Voice preset: Work") && prompt.includes("- Use emojis"), "the Work preset's rules reach the model");
+    check(prompt.includes("my manager, keep it brief"), "the chat note reaches the model");
+    check(!localCards.some((t) => /stress/i.test(t)) && /held back/.test(await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".note")?.textContent ?? "")), "a word blocked in the preset is never shown");
+    const remembered = await (async () => {
+      const p = await browser.newPage();
+      await p.goto(`chrome-extension://${extId}/popup.html`);
+      const v = await p.evaluate(() => chrome.storage.local.get(["chatPresets", "chatNotes"]));
+      await p.close();
+      return v;
+    })();
+    check(Object.values(remembered.chatPresets ?? {}).includes("work") && Object.values(remembered.chatNotes ?? {}).includes("my manager, keep it brief"), "preset and note are remembered for this chat");
+    await page.bringToFront();
+  }
 
   // The popup, rendered as a page for the screenshot.
   if (SHOTS) {
@@ -170,6 +214,11 @@ try {
     await popup.goto(`chrome-extension://${id}/popup.html`);
     await sleep(400);
     await popup.screenshot({ path: resolve(ROOT, "../docs/popup.png") });
+    const options = await browser.newPage();
+    await options.setViewport({ width: 1280, height: 1180, deviceScaleFactor: 2 });
+    await options.goto(`chrome-extension://${id}/options.html?preset=work`);
+    await sleep(500);
+    await options.screenshot({ path: resolve(ROOT, "../docs/presets.png") });
   }
 } catch (err) {
   console.error(err);

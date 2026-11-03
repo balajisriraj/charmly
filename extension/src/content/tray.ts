@@ -1,5 +1,5 @@
 // The suggestion tray: a small glass panel docked above WhatsApp's message box, rendered in a shadow root.
-import { TONES, type Suggestion, type Tone, type Vibe } from "../shared/types";
+import { type Preset, TONES, type Suggestion, type Tone, type Vibe } from "../shared/types";
 import css from "./tray.css";
 
 type State =
@@ -9,6 +9,9 @@ type State =
   | { kind: "error"; message: string };
 
 export type TrayHandlers = {
+  choosePreset: (id: string) => void;
+  saveNote: (note: string) => void;
+  editPresets: () => void;
   suggest: (tone: Tone) => void;
   polish: () => void;
   insert: (text: string, index: number) => void;
@@ -29,6 +32,11 @@ export class Tray {
   tone: Tone = "warm";
   flirty = false;
   badge = ""; // "demo" or "on-device"
+  presets: Preset[] = [];
+  preset = ""; // the preset this chat uses ("" = none)
+  note = ""; // this chat's note
+  private menu = false;
+  private editingNote = false;
 
   constructor(private readonly h: TrayHandlers) {
     this.host = document.createElement("charmly-tray");
@@ -101,6 +109,35 @@ export class Tray {
     e.preventDefault();
     e.stopPropagation();
     const act = target.dataset.act!;
+    if (act === "menu") {
+      this.menu = !this.menu;
+      this.editingNote = false;
+      return this.render();
+    }
+    if (act === "preset") {
+      this.menu = false;
+      this.preset = target.dataset.id ?? "";
+      this.h.choosePreset(this.preset);
+      return this.render();
+    }
+    if (act === "edit-presets") {
+      this.menu = false;
+      this.render();
+      return this.h.editPresets();
+    }
+    if (act === "note") {
+      this.editingNote = !this.editingNote;
+      this.menu = false;
+      this.render();
+      if (this.editingNote) this.root.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+      return;
+    }
+    if (act === "save-note") {
+      this.note = this.root.querySelector<HTMLTextAreaElement>("textarea")?.value.trim() ?? "";
+      this.editingNote = false;
+      this.h.saveNote(this.note);
+      return this.render();
+    }
     if (act === "suggest") this.h.suggest(this.tone);
     else if (act === "polish") this.h.polish();
     else if (act === "close") this.h.dismiss();
@@ -121,12 +158,25 @@ export class Tray {
       .map((t) => `<button data-act="tone" data-tone="${t.id}" class="${t.id === this.tone ? "on" : ""}">${t.emoji} ${t.label}</button>`)
       .join("")}</div>`;
     const brand = `<span class="mark" aria-hidden="true"></span><b>Charmly</b>${this.badge ? `<span class="demo ${this.badge === "on-device" ? "local" : ""}">${this.badge}</span>` : ""}`;
+    const current = this.presets.find((p) => p.id === this.preset);
+    const persona = `<span class="persona">
+        <button class="preset-chip ${current ? "set" : ""}" data-act="menu" aria-haspopup="menu" aria-expanded="${this.menu}" title="Voice preset for this chat">${current ? `${esc(current.emoji)} ${esc(current.name)}` : "Voice: none"} ▾</button>
+        <button class="icon note-btn ${this.note ? "has" : ""}" data-act="note" title="${this.note ? "Edit this chat's note" : "Add a note for this chat"}" aria-label="Chat note">✎</button>
+        ${this.menu ? `<div class="menu" role="menu">
+          ${this.presets.map((p) => `<button role="menuitemradio" aria-checked="${p.id === this.preset}" data-act="preset" data-id="${esc(p.id)}" class="${p.id === this.preset ? "on" : ""}"><span>${esc(p.emoji)}</span>${esc(p.name)}<em>${esc(p.about.slice(0, 48))}${p.about.length > 48 ? "…" : ""}</em></button>`).join("")}
+          <button role="menuitemradio" aria-checked="${!this.preset}" data-act="preset" data-id="" class="${!this.preset ? "on" : ""}"><span>○</span>No preset<em>just your learnt style</em></button>
+          <button class="edit" data-act="edit-presets">Edit presets…</button>
+        </div>` : ""}
+      </span>`;
+    const noteEditor = this.editingNote
+      ? `<div class="note-edit"><textarea rows="2" maxlength="400" placeholder="A note for this chat, e.g. 'college friend, roast him freely, Tanglish ok' or 'my manager: keep it formal'">${esc(this.note)}</textarea><button class="ghost polish" data-act="save-note">Save note</button></div>`
+      : "";
     let body = "";
 
     if (s.kind === "pill") {
-      body = `<div class="pill">${brand}
+      body = `<div class="pill">${brand}${persona}
         <button class="ghost" data-act="suggest">Suggest replies <kbd>${ALT}R</kbd></button>
-        ${s.draft ? `<button class="ghost polish" data-act="polish">Polish my draft <kbd>${ALT}P</kbd></button>` : ""}</div>`;
+        ${s.draft ? `<button class="ghost polish" data-act="polish">Polish my draft <kbd>${ALT}P</kbd></button>` : ""}</div>${noteEditor}`;
     } else if (s.kind === "error") {
       body = `<header>${brand}<span class="spacer"></span><button class="x" data-act="close" aria-label="Close">×</button></header>
         <p class="err">${esc(s.message)}</p>`;
@@ -146,10 +196,10 @@ export class Tray {
         .join("");
       const skeletons = s.kind === "loading" ? Array.from({ length: Math.max(0, 3 - s.suggestions.length) }, () => '<div class="card skeleton"><span class="shimmer w30"></span><span class="shimmer w90"></span><span class="shimmer w60"></span></div>').join("") : "";
       const foot = s.kind === "ready" && s.dropped ? `<p class="note">${s.dropped} option${s.dropped === 1 ? "" : "s"} held back by the kindness filter.</p>` : "";
-      body = `<header>${brand}${s.polishing ? '<span class="sub">polishing your draft</span>' : ""}<span class="spacer"></span>${toneBar}
+      body = `<header>${brand}${persona}${s.polishing ? '<span class="sub">polishing your draft</span>' : ""}<span class="spacer"></span>${toneBar}
           <button class="icon" data-act="suggest" aria-label="Regenerate" title="Regenerate (${ALT}R)">↻</button>
           <button class="x" data-act="close" aria-label="Close" title="Hide (Esc)">×</button></header>
-        ${vibe}<div class="cards">${cards}${skeletons}</div>${foot}`;
+        ${noteEditor}${vibe}<div class="cards">${cards}${skeletons}</div>${foot}`;
     }
     const keep = ["dark", "enter"].filter((c) => this.panel.classList.contains(c));
     this.panel.className = ["tray", s.kind, ...keep].join(" ");

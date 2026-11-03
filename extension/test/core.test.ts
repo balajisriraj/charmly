@@ -102,3 +102,33 @@ describe("quick vibe", () => {
     expect(quickVibe([{ speaker: "them", text: "dinner tonight?" }])).toMatchObject({ boundary: false, intent: "making plans" });
   });
 });
+
+describe("voice presets", () => {
+  it("turns a preset and chat note into a rules block the prompt leads with", async () => {
+    const { rulesBlock } = await import("../src/shared/prompt");
+    const work = { about: "Professional but friendly.", always: ["Use full sentences"], never: ["Use emojis"], blocked: ["lol"] };
+    const block = rulesBlock(work, "my manager, keep it brief", "Work");
+    expect(block).toContain("Voice preset: Work");
+    expect(block).toContain("Always:\n- Use full sentences");
+    expect(block).toContain("Never:\n- Use emojis");
+    expect(block).toContain('"lol"');
+    expect(block).toContain("my manager, keep it brief");
+    expect(buildPrompt([{ speaker: "them", text: "hi" }], "warm", false, null, undefined, work, undefined, "Work").startsWith("<your_rules>")).toBe(true);
+    expect(rulesBlock(null)).toBe("");
+  });
+
+  it("enforces blocked words as whole words, in any case", async () => {
+    const { blockedIn } = await import("../src/shared/safety");
+    expect(blockedIn("haha LOL that's great", ["lol"])).toBe("lol");
+    expect(blockedIn("hello there", ["hell"])).toBeNull();
+    expect(blockedIn("see you, babe 😘", ["babe"])).toBe("babe");
+    expect(check(s("lol fair enough"), calm, false, ["lol"])).toMatchObject({ ok: false, reason: 'uses "lol", which you blocked' });
+  });
+
+  it("ships editable starter presets and cleans stored ones", async () => {
+    const { normalisePresets } = await import("../src/shared/types");
+    expect(normalisePresets(null).map((p) => p.name)).toEqual(["Friends", "Work", "Family", "Dating"]);
+    const [p] = normalisePresets([{ id: "x", name: "", always: ["  a  ", ""], never: "nope" }]);
+    expect(p).toMatchObject({ id: "x", name: "Untitled", always: ["a"], never: [], blocked: [] });
+  });
+});

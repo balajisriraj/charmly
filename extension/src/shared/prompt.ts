@@ -1,5 +1,5 @@
 import { describe } from "./style";
-import type { ChatMessage, StyleProfile, Tone } from "./types";
+import type { ChatMessage, Rules, StyleProfile, Tone } from "./types";
 
 export const SYSTEM = `You help one person reply to a WhatsApp chat in their own voice. You read the recent messages, sense the other person's mood and intent, and write three short reply options the person could send as they are.
 
@@ -44,11 +44,32 @@ const TONE_HINT: Record<Tone, string> = {
   direct: "Lead with a clear, direct option that gets to the point.",
 };
 
-export function buildPrompt(chat: ChatMessage[], tone: Tone, flirty: boolean, style: StyleProfile | null, draft?: string): string {
+/** The person's own rules, as a block the writer must follow. Empty when they haven't set any. */
+export function rulesBlock(rules: Rules | null, note?: string, presetName?: string): string {
+  const parts: string[] = [];
+  if (presetName) parts.push(`Voice preset: ${presetName}`);
+  if (rules?.about.trim()) parts.push(`About the person and how they talk:\n${rules.about.trim()}`);
+  if (rules?.always.length) parts.push(`Always:\n${rules.always.map((r) => `- ${r}`).join("\n")}`);
+  if (rules?.never.length) parts.push(`Never:\n${rules.never.map((r) => `- ${r}`).join("\n")}`);
+  if (rules?.blocked.length) parts.push(`Never use these words or phrases: ${rules.blocked.map((b) => `"${b}"`).join(", ")}`);
+  if (note?.trim()) parts.push(`About this chat (the person's own note):\n${note.trim()}`);
+  return parts.length ? `<your_rules>\nThese come from the person and override style habits. Follow them exactly.\n${parts.join("\n\n")}\n</your_rules>\n\n` : "";
+}
+
+export function buildPrompt(
+  chat: ChatMessage[],
+  tone: Tone,
+  flirty: boolean,
+  style: StyleProfile | null,
+  draft?: string,
+  rules?: Rules | null,
+  note?: string,
+  presetName?: string,
+): string {
   const transcript = chat.map((m) => `${m.speaker === "me" ? "Me" : "Them"}: ${m.text}`).join("\n");
   const tones = flirty ? "warm, playful, flirty, direct" : "warm, playful, direct (flirty is switched off)";
   const task = draft
     ? `The person has drafted: "${draft}". Write three polished versions of THAT message in their voice, keeping its meaning.`
     : "Write three different replies to the latest message.";
-  return `<style>\n${describe(style)}\n</style>\n\n<chat>\n${transcript}\n</chat>\n\n${task} Use tones from: ${tones}. ${TONE_HINT[tone]} Make the three options clearly different from each other.`;
+  return `${rulesBlock(rules ?? null, note, presetName)}<style>\n${describe(style)}\n</style>\n\n<chat>\n${transcript}\n</chat>\n\n${task} Use tones from: ${tones}. ${TONE_HINT[tone]} Make the three options clearly different from each other.`;
 }

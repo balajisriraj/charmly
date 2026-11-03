@@ -16,6 +16,7 @@ const manifest = {
   version,
   description: "Reply suggestions for WhatsApp Web, in your own voice. Tap to insert; you always send.",
   icons: { 16: "icons/16.png", 32: "icons/32.png", 48: "icons/48.png", 128: "icons/128.png" },
+  options_ui: { page: "options.html", open_in_tab: true },
   action: { default_popup: "popup.html", default_title: "Charmly", default_icon: { 16: "icons/16.png", 32: "icons/32.png" } },
   background: { service_worker: "background.js", type: "module" },
   content_scripts: [{ matches: pages, js: ["content.js"], run_at: "document_idle" }],
@@ -28,12 +29,15 @@ writeFileSync("dist/manifest.json", JSON.stringify(manifest, null, 2));
 cpSync("public", "dist", { recursive: true });
 cpSync("src/popup/popup.html", "dist/popup.html");
 cpSync("src/popup/popup.css", "dist/popup.css");
+cpSync("src/options/options.html", "dist/options.html");
+cpSync("src/options/options.css", "dist/options.css");
 
 const common = { bundle: true, target: "chrome120", minify: !dev, sourcemap: dev ? "inline" : false, logLevel: "info", loader: { ".css": "text" }, define: { "process.env.NODE_ENV": dev ? '"development"' : '"production"' } };
 const builds = [
   { ...common, entryPoints: ["src/background/index.ts"], outfile: "dist/background.js", format: "esm" },
   { ...common, entryPoints: ["src/content/index.ts"], outfile: "dist/content.js", format: "iife" },
   { ...common, entryPoints: ["src/popup/Popup.tsx"], outfile: "dist/popup.js", format: "iife", jsx: "automatic" },
+  { ...common, entryPoints: ["src/options/Options.tsx"], outfile: "dist/options.js", format: "iife", jsx: "automatic" },
 ];
 
 if (watch) {

@@ -1,7 +1,7 @@
 // Content script: watches the open WhatsApp chat, asks for suggestions when a new message arrives,
 // and inserts the one you pick into the message box. It never sends anything.
 import { profile } from "../shared/style";
-import { DEFAULTS, normalise, type Settings, type StreamEvent, type StyleProfile, type Tone } from "../shared/types";
+import { DEFAULTS, normalise, normalisePresets, type Settings, type StreamEvent, type StyleProfile, type Tone } from "../shared/types";
 import { Tray } from "./tray";
 import { WhatsApp } from "./whatsapp";
 
@@ -15,7 +15,34 @@ let dismissedFor: string | null = null; // the message the user closed the tray 
 let pending: number | undefined;
 let lastDraft = false;
 
+let chatPresets: Record<string, string> = {};
+let chatNotes: Record<string, string> = {};
+
+/** Load this chat's preset and note into the tray. Chat names never leave the browser. */
+function applyChat() {
+  const chat = wa.chat() ?? "";
+  tray.preset = chat in chatPresets ? chatPresets[chat] : settings.preset;
+  tray.note = chatNotes[chat] ?? "";
+}
+
 const tray = new Tray({
+  choosePreset: async (id) => {
+    const chat = wa.chat();
+    if (!chat) return;
+    chatPresets = { ...chatPresets, [chat]: id };
+    await chrome.storage.local.set({ chatPresets });
+    if (tray.open) request(tray.tone);
+  },
+  saveNote: async (note) => {
+    const chat = wa.chat();
+    if (!chat) return;
+    chatNotes = { ...chatNotes };
+    if (note) chatNotes[chat] = note;
+    else delete chatNotes[chat];
+    await chrome.storage.local.set({ chatNotes });
+    if (tray.open) request(tray.tone);
+  },
+  editPresets: () => void chrome.runtime.sendMessage({ type: "open-options" }),
   suggest: (tone) => request(tone),
   polish: () => request(tray.tone, wa.draft()),
   insert: (text, index) => void put(text, index),
@@ -71,7 +98,7 @@ function request(tone: Tone, draft?: string) {
     else if (e.type === "error") tray.set({ kind: "error", message: e.message });
     sync();
   });
-  port.postMessage({ type: "suggest", id, chat, tone, draft: draft || undefined });
+  port.postMessage({ type: "suggest", id, chat, tone, draft: draft || undefined, preset: tray.preset, note: tray.note || undefined });
 }
 
 /** Learn the user's style from their own sent messages in the open chat. Only a summary is stored. */
@@ -88,6 +115,7 @@ function tick() {
   const chat = wa.chat();
   if (chat !== lastChat) {
     lastChat = chat;
+    applyChat();
     lastKey = wa.lastKey();
     port?.disconnect();
     tray.set({ kind: "pill", draft: false });
@@ -158,16 +186,25 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
 });
 
 chrome.storage.onChanged.addListener((changes) => {
-  if (changes.settings) {
-    settings = normalise(changes.settings.newValue);
+  if (changes.settings) settings = normalise(changes.settings.newValue);
+  if (changes.presets) tray.presets = normalisePresets(changes.presets.newValue);
+  if (changes.chatPresets) chatPresets = (changes.chatPresets.newValue as Record<string, string>) ?? {};
+  if (changes.chatNotes) chatNotes = (changes.chatNotes.newValue as Record<string, string>) ?? {};
+  if (changes.settings || changes.presets || changes.chatPresets || changes.chatNotes) {
+    applyChat();
     sync();
+    if (!tray.open) tray.set({ kind: "pill", draft: !!wa.draft() });
   }
 });
 
 window.addEventListener("resize", () => tray.place(wa.footer(), wa.dark()));
 
-chrome.storage.local.get("settings").then(({ settings: saved }) => {
+chrome.storage.local.get(["settings", "presets", "chatPresets", "chatNotes"]).then(({ settings: saved, presets, chatPresets: cp, chatNotes: cn }) => {
   settings = normalise(saved);
+  tray.presets = normalisePresets(presets);
+  chatPresets = (cp as Record<string, string>) ?? {};
+  chatNotes = (cn as Record<string, string>) ?? {};
+  applyChat();
   lastChat = wa.chat();
   lastKey = wa.lastKey();
   observer.observe(document.body, { childList: true, subtree: true, characterData: true });

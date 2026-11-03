@@ -21,6 +21,23 @@ button { cursor: pointer; border: 0; background: none; color: inherit; }
 kbd { font: 600 10.5px ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink-3); padding: 1px 5px; border-radius: 6px; background: var(--line); }
 
 .pill { display: flex; align-items: center; gap: 8px; }
+.tray.pill:has(.note-edit) { border-radius: 20px; padding: 8px 10px; }
+.persona { position: relative; display: inline-flex; align-items: center; gap: 2px; }
+.preset-chip { padding: 4px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); background: var(--line); transition: background .15s, color .15s; }
+.preset-chip.set { color: #fff; background: var(--grad); box-shadow: 0 4px 12px -6px #ff5fa2; }
+.note-btn { width: 26px; height: 26px; font-size: 14px; }
+.note-btn.has { color: #db2777; }
+.menu { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 2; width: 280px; padding: 6px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 18px 40px -16px rgba(76, 29, 149, .45); display: grid; gap: 2px; animation: rise .18s ease-out; }
+.menu button { display: grid; grid-template-columns: 24px 1fr; align-items: center; column-gap: 6px; text-align: left; padding: 7px 8px; border-radius: 10px; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.menu button span { grid-row: span 2; font-size: 16px; text-align: center; }
+.menu button em { grid-column: 2; font-style: normal; font-weight: 400; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu button:hover, .menu button.on { background: var(--line); }
+.menu button.on { box-shadow: inset 3px 0 0 #ff5fa2; }
+.menu .edit { display: block; margin-top: 4px; padding: 8px; font-weight: 600; color: #db2777; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; }
+.note-edit { display: flex; gap: 8px; align-items: flex-end; margin: 4px 0 10px; }
+.pill + .note-edit { margin: 10px 0 2px; }
+.note-edit textarea { flex: 1; min-width: 260px; resize: none; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-family: inherit; font-size: 13px; line-height: 1.45; }
+.note-edit textarea:focus { outline: none; border-color: #ff5fa2; }
 header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .mark { width: 18px; height: 18px; border-radius: 6px; background: var(--grad); box-shadow: 0 2px 8px -2px #ff5fa2aa; position: relative; flex: none; }
 .mark::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: #fff; transform: scale(.55); }

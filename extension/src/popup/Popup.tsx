@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { LocalModel } from "../shared/ollama";
-import { DEFAULTS, type Engine, normalise, type Settings, type StyleProfile, TONES } from "../shared/types";
+import { DEFAULTS, type Engine, normalise, normalisePresets, type Preset, type Settings, type StyleProfile, TONES } from "../shared/types";
 
 type Health = { chat: boolean; messages: number; composer: boolean } | null;
 
@@ -34,6 +34,7 @@ function App() {
   const [note, setNote] = useState<string | null>(null);
   const [models, setModels] = useState<LocalModel[] | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [presets, setPresets] = useState<Preset[]>([]);
 
   const save = useCallback((patch: Partial<Settings>) => {
     setS((prev) => {
@@ -56,6 +57,7 @@ function App() {
   }, []);
 
   useEffect(() => {
+    chrome.storage.local.get("presets").then(({ presets }) => setPresets(normalisePresets(presets)));
     chrome.storage.local.get(["settings", "style"]).then(async ({ settings, style }) => {
       const merged = normalise(settings);
       setS(merged);
@@ -212,6 +214,22 @@ function App() {
           </div>
         </div>
         <Toggle on={s.flirty} onChange={(v) => save({ flirty: v, tone: !v && s.tone === "flirty" ? "warm" : s.tone })} label="Allow flirty replies" hint="Switched off automatically if they seem to want space" />
+      </section>
+
+      <section>
+        <h2>Voice presets</h2>
+        <small>Default for new chats. Switch per chat from the tray.</small>
+        <div className="presets">
+          {presets.map((p) => (
+            <button key={p.id} className={s.preset === p.id ? "on" : ""} onClick={() => save({ preset: s.preset === p.id ? "" : p.id })} title={p.about}>
+              <span>{p.emoji}</span>
+              {p.name}
+            </button>
+          ))}
+        </div>
+        <button className="link" onClick={() => chrome.runtime.openOptionsPage()}>
+          Edit presets & rules →
+        </button>
       </section>
 
       <section>
