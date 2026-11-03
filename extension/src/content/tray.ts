@@ -281,7 +281,7 @@ export class Tray {
         )
         .join("");
       const skeletons = s.kind === "loading" ? Array.from({ length: Math.max(0, 3 - s.suggestions.length) }, () => '<div class="card skeleton"><span class="shimmer w30"></span><span class="shimmer w90"></span><span class="shimmer w60"></span></div>').join("") : "";
-      const foot = s.kind === "ready" && s.dropped ? `<p class="note">${s.dropped} option${s.dropped === 1 ? "" : "s"} held back by the kindness filter.</p>` : "";
+      const foot = s.kind === "ready" && s.dropped ? `<p class="note">${s.dropped} option${s.dropped === 1 ? "" : "s"} held back by the safety filter.</p>` : "";
       body = `<header>${brand}${persona}${s.polishing ? '<span class="sub">polishing your draft</span>' : ""}<span class="spacer"></span>${toneBar}
           <button class="icon" data-act="suggest" aria-label="Regenerate" title="Regenerate (${ALT}R)">↻</button>
           <button class="x" data-act="close" aria-label="Close" title="Hide (Esc)">×</button></header>

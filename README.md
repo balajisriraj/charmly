@@ -32,7 +32,7 @@ flowchart LR
     BG -- "one streamed call" --> CL[(Claude)]
     CL -- "VIBE line, then<br/>one line per reply" --> PR["Line parser"]
     PR --> SF{{"Safety filter<br/>deterministic"}}
-    SF -- "kind, on-tone" --> T["Tray<br/>cards stream in"]
+    SF -- "on-tone, no pressure" --> T["Tray<br/>cards stream in"]
     SF -. "held back" .-> X(("dropped"))
     T -- "tap / Alt+1" --> CB["Message box<br/>you press Enter"]
 ```
@@ -40,7 +40,7 @@ flowchart LR
 **Context → tone → writer, in one call.** The Lab card describes a three-step chain. Here it runs as a single streamed request, so the latency is one round trip. Claude first writes a `VIBE|mood|intent|language|boundary` line, then one `n|tone|reply|why` line per option. The parser emits each record as soon as its line completes, so the vibe and the first card appear while the rest are still being written.
 
 **The safety filter is code, not a prompt.** Every suggestion passes a deterministic check before it can be shown:
-- it drops unkind or crude lines
+- it drops pressure and coercion ("or else", "you owe me", "you have to reply"). Banter and swearing are left to you: these are your own chats, and the replies match how the chat already talks
 - it drops invented phone numbers, emails and addresses
 - it drops anything that breaks character ("As an AI")
 - it drops flirty options unless you opted in, and always when the other person signals they want space

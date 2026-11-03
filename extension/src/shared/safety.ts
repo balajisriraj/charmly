@@ -1,14 +1,11 @@
 import type { Suggestion, Vibe } from "./types";
 
-// Lines no suggestion should ever contain, whatever the tone.
+// These are personal chats, so banter, roasting and swearing are left to the person and the chat's own register.
+// What's never suggested is coercion: pressure to reply or meet, debts and threats, requests for intimate photos.
 const NEVER = [
   /\b(send|show) (me )?(nudes?|pics? of you)\b/i,
-  /\b(stupid|idiot|dumb|ugly|loser)\b/i,
-  // About a person, not a plan: "something crazy" is fine, "you're crazy" is not.
-  /\byou('re| are)( so| such an?)? (crazy|fat|psycho)\b/i,
   // Pressure, not ordinary phrasing: "you must be so relieved" is fine, "you must reply" is not.
   /\b(you owe me|or else|why are(n't| you not) you replying|(you have to|you must|you need to) (reply|answer|respond|text me|call me|see me))\b/i,
-  /\b(f+u+c+k+|s+h+i+t+|b+i+t+c+h+)\b/i,
 ];
 // Pressure that is fine in banter but not when the other person is pulling back.
 const PUSHY = [/\b(come on|just one|please please|don'?t be like that|why not|give me a chance)\b/i, /!{2,}/];
@@ -35,7 +32,7 @@ export function check(s: Suggestion, vibe: Vibe | null, allowFlirty: boolean, bl
     .trim();
   if (!text) return { ok: false, text, reason: "empty" };
   if (text.length > 400) return { ok: false, text, reason: "too long for a text" };
-  if (NEVER.some((r) => r.test(text))) return { ok: false, text, reason: "unkind or crude" };
+  if (NEVER.some((r) => r.test(text))) return { ok: false, text, reason: "pressuring" };
   const hit = blockedIn(text, blocked);
   if (hit) return { ok: false, text, reason: `uses "${hit}", which you blocked` };
   if (INVENTED.some((r) => r.test(text))) return { ok: false, text, reason: "contains contact details" };

@@ -30,8 +30,9 @@ describe("safety filter", () => {
   it("keeps kind replies and normalises dashes", () => {
     expect(check(s("sounds fun \u2014 count me in"), calm, false)).toEqual({ ok: true, text: "sounds fun - count me in" });
   });
-  it("drops crude, unkind, invented-contact and out-of-character text", () => {
-    expect(check(s("don't be stupid"), calm, true).ok).toBe(false);
+  it("leaves banter alone, but drops pressure, invented contacts and out-of-character text", () => {
+    expect(check(s("don't be stupid da 😂"), calm, true).ok).toBe(true);
+    expect(check(s("shit that's amazing, you crazy legend"), calm, true).ok).toBe(true);
     expect(check(s("call me on +65 9123 4567"), calm, true).ok).toBe(false);
     expect(check(s("As an AI, I think"), calm, true).ok).toBe(false);
     expect(check(s("you must reply to me now"), calm, true).ok).toBe(false);
@@ -178,9 +179,9 @@ describe("steer toward a goal", () => {
 
 describe("filter and parser edge cases", () => {
   const calm = { mood: "happy", intent: "plans", language: "English", boundary: false };
-  it("allows 'crazy' about a plan but not about a person", () => {
+  it("allows teasing words in banter", () => {
     expect(check(s("up for something crazy tonight?"), calm, true).ok).toBe(true);
-    expect(check(s("you're crazy"), calm, true).ok).toBe(false);
+    expect(check(s("you're crazy 😂"), calm, true).ok).toBe(true);
   });
   it("reads a tone line with the reply on the next line", () => {
     const out: Suggestion[] = [];
