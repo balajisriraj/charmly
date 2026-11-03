@@ -48,19 +48,29 @@ describe("WhatsApp adapter", () => {
     expect(wa.health()).toEqual({ chat: true, messages: 3, composer: true });
   });
 
-  it("inserts into the composer without sending", () => {
+  it("inserts into the composer without sending", async () => {
     const wa = new WhatsApp(document);
-    expect(wa.insert("on my way 😊")).toBe(true);
+    expect(await wa.insert("on my way 😊")).toBe("ok");
     expect(wa.draft()).toBe("on my way 😊");
     expect(wa.messages()).toHaveLength(3);
   });
 
-  it("degrades to an empty, unhealthy view when the page isn't a chat", () => {
+  it("degrades to an empty, unhealthy view when the page isn't a chat", async () => {
     document.body.innerHTML = "<div>login screen</div>";
     const wa = new WhatsApp(document);
     expect(wa.messages()).toEqual([]);
     expect(wa.health()).toEqual({ chat: false, messages: 0, composer: false });
-    expect(wa.insert("x")).toBe(false);
+    expect(await wa.insert("x")).toBe("no-box");
+  });
+
+  it("reads direction from tail icons when the old classes are gone", () => {
+    document.body.innerHTML = `<div id="main"><header><span dir="auto">x</span></header>
+      <div data-id="A1"><div data-testid="msg-container"><span data-icon="tail-out"></span><div data-pre-plain-text="[10:00, 03/11/2026] Me: "><span class="selectable-text">sent one</span></div></div></div>
+      <div data-id="B2"><div data-testid="msg-container"><span data-icon="tail-in"></span><div data-pre-plain-text="[10:01, 03/11/2026] X: "><span class="selectable-text">got one</span></div></div></div>
+      <footer><div contenteditable="true" role="textbox" data-lexical-editor="true"><p class="selectable-text"><br></p></div></footer></div>`;
+    const wa = new WhatsApp(document);
+    expect(wa.messages().map((m) => `${m.speaker}:${m.text}`)).toEqual(["me:sent one", "them:got one"]);
+    expect(wa.lastKey()).toMatch(/^in:/);
   });
 
   it("extracts text with line breaks and strips direction marks", () => {

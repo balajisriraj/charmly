@@ -22,6 +22,12 @@ const first = <T extends Element>(root: ParentNode, selectors: string[]): T | nu
   return null;
 };
 
+/** Compare composer text loosely: editors add non-breaking spaces, trailing newlines and zero-width marks. */
+export const same = (a: string, b: string) => {
+  const norm = (x: string) => x.replace(/[\u00a0\u202f]/g, " ").replace(/[\u200b-\u200f\ufeff]/g, "").replace(/\s+/g, " ").trim();
+  return norm(a) === norm(b);
+};
+
 /** Text of a message, keeping emoji (WhatsApp renders them as <img alt="😂">) and dropping UI chrome. */
 export function textOf(el: Element): string {
   let out = "";
@@ -56,12 +62,33 @@ export class WhatsApp {
     return first(this.doc, SEL.footer);
   }
 
+  /**
+   * Who sent a message. WhatsApp has changed this markup over time, so the checks go from most to least explicit:
+   * the old .message-in/.message-out classes, then the bubble's tail icon (tail-out / tail-in, present on the first
+   * message of a group), then the bubble's side of the conversation (sent messages sit on the right, mirrored in RTL).
+   */
+  speakerOf(node: Element): Speaker | null {
+    if (node.closest(".message-out")) return "me";
+    if (node.closest(".message-in")) return "them";
+    const row = node.closest("[data-id]") ?? node.closest("[data-testid='msg-container']") ?? node.parentElement;
+    if (row?.querySelector("[data-icon='tail-out']")) return "me";
+    if (row?.querySelector("[data-icon='tail-in']")) return "them";
+    const main = this.main();
+    const bubble = node.closest("[data-testid='msg-container']") ?? node;
+    const r = bubble.getBoundingClientRect();
+    const m = main?.getBoundingClientRect();
+    if (!m || !m.width || !r.width) return null;
+    const right = (r.left + r.right) / 2 - m.left > m.width / 2;
+    const rtl = getComputedStyle(main!).direction === "rtl";
+    return right !== rtl ? "me" : "them";
+  }
+
   /** The last `limit` text messages in the open chat, oldest first. Names are never included. */
   messages(limit = 12): ChatMessage[] {
     const nodes = [...this.doc.querySelectorAll<HTMLElement>(SEL.message.join(","))];
     const out: ChatMessage[] = [];
     for (const node of nodes.slice(-limit * 2)) {
-      const speaker: Speaker | null = node.closest(".message-out") ? "me" : node.closest(".message-in") ? "them" : null;
+      const speaker = this.speakerOf(node);
       if (!speaker) continue;
       const body = node.querySelector(".selectable-text") ?? node;
       const text = textOf(body);
@@ -77,7 +104,7 @@ export class WhatsApp {
     const nodes = this.doc.querySelectorAll<HTMLElement>(SEL.message.join(","));
     const last = nodes[nodes.length - 1];
     if (!last) return null;
-    const dir = last.closest(".message-out") ? "out" : "in";
+    const dir = this.speakerOf(last) === "me" ? "out" : "in";
     return `${dir}:${last.getAttribute("data-pre-plain-text")}:${textOf(last).slice(0, 80)}`;
   }
 
@@ -87,30 +114,51 @@ export class WhatsApp {
   }
 
   /**
-   * Put text in the message box without sending it. WhatsApp's editor keeps its own state, so writing to
-   * the DOM directly doesn't stick; insertText (or a synthetic paste) goes through the editor's input path.
+   * Put text in the message box without sending it.
+   *
+   * WhatsApp's editor (Lexical) owns its own state: writing to the DOM directly is ignored or undone, and
+   * text arrives a frame or two after the input event. So: select what's there, go through the editor's own
+   * input path (insertText, then a synthetic paste), and wait for the editor to render before checking.
    */
-  insert(text: string): boolean {
+  async insert(text: string): Promise<"ok" | "no-box" | "not-applied"> {
     const box = this.composer();
-    if (!box) return false;
-    box.focus();
-    const selection = this.doc.getSelection();
-    const range = this.doc.createRange();
-    range.selectNodeContents(box);
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-    if (this.doc.execCommand?.("insertText", false, text) && textOf(box) === text) return true;
+    if (!box) return "no-box";
+    const landed = async () => {
+      for (let i = 0; i < 10; i++) {
+        await new Promise((r) => setTimeout(r, 30));
+        if (same(textOf(box), text)) return true;
+      }
+      return false;
+    };
+    const selectAll = () => {
+      box.focus();
+      const range = this.doc.createRange();
+      range.selectNodeContents(box);
+      const selection = this.doc.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    };
+
+    selectAll();
+    if (this.doc.execCommand?.("insertText", false, text) && (await landed())) return "ok";
+
+    selectAll();
     try {
       const data = new DataTransfer();
       data.setData("text/plain", text);
       box.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
-      if (textOf(box) === text) return true;
+      if (await landed()) return "ok";
     } catch {
-      /* fall through */
+      /* ClipboardEvent construction can fail in some contexts */
     }
-    box.textContent = text;
-    box.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
-    return textOf(box) === text;
+
+    // Plain contenteditable (no editor framework): writing the text and announcing it is enough.
+    if (!box.hasAttribute("data-lexical-editor")) {
+      box.textContent = text;
+      box.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+      if (await landed()) return "ok";
+    }
+    return "not-applied";
   }
 
   /**

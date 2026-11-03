@@ -11,7 +11,7 @@ type State =
 export type TrayHandlers = {
   suggest: (tone: Tone) => void;
   polish: () => void;
-  insert: (text: string) => void;
+  insert: (text: string, index: number) => void;
   dismiss: () => void;
 };
 
@@ -110,10 +110,7 @@ export class Tray {
     } else if (act === "insert") {
       const i = Number(target.dataset.i);
       const s = this.suggestions[i];
-      if (s) {
-        this.h.insert(s.text);
-        this.markInserted(i);
-      }
+      if (s) this.h.insert(s.text, i);
     }
   }
 

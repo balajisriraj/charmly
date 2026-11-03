@@ -18,9 +18,7 @@ let lastDraft = false;
 const tray = new Tray({
   suggest: (tone) => request(tone),
   polish: () => request(tray.tone, wa.draft()),
-  insert: (text) => {
-    if (!wa.insert(text)) tray.set({ kind: "error", message: "Couldn't reach the message box. Click into it and try again." });
-  },
+  insert: (text, index) => void put(text, index),
   dismiss: () => {
     port?.disconnect();
     port = null;
@@ -28,6 +26,24 @@ const tray = new Tray({
     tray.set({ kind: "pill", draft: !!wa.draft() });
   },
 });
+
+/** Insert a suggestion and say clearly what went wrong if it didn't take. */
+async function put(text: string, index?: number) {
+  const result = await wa.insert(text);
+  if (result === "ok") {
+    if (index !== undefined) tray.markInserted(index);
+    return;
+  }
+  // Leave the suggestions on screen, and copy the text so it's one paste away.
+  await navigator.clipboard?.writeText(text).catch(() => {});
+  tray.set({
+    kind: "error",
+    message:
+      result === "no-box"
+        ? "Can't find WhatsApp's message box on this page. The text is copied: click into the box and paste."
+        : "WhatsApp's editor didn't accept the text. It's copied: click into the box and paste.",
+  });
+}
 
 function sync() {
   tray.tone = settings.tone;
@@ -124,7 +140,7 @@ document.addEventListener(
     if (digit && tray.suggestions[Number(digit[1]) - 1]) {
       e.preventDefault();
       const i = Number(digit[1]) - 1;
-      if (wa.insert(tray.suggestions[i].text)) tray.markInserted(i);
+      void put(tray.suggestions[i].text, i);
     } else if (k === "KeyR") {
       e.preventDefault();
       request(tray.tone);
