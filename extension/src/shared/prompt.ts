@@ -1,4 +1,5 @@
 import { describe } from "./style";
+import { type Goal, PLANS, stepOf } from "./goal";
 import type { ChatMessage, Rules, StyleProfile, Tone } from "./types";
 
 export const SYSTEM = `You help one person reply to a WhatsApp chat in their own voice. You read the recent messages, sense the other person's mood and intent, and write three short reply options the person could send as they are.
@@ -13,7 +14,7 @@ Rules:
 
 Output exactly four lines and nothing else (five when the person set a goal):
 VIBE|<their mood in 1-3 words>|<what they want, 2-5 words>|<language mix>|<yes if they are pulling back or asked for space, else no>
-GOAL|<1, 2 or 3>|<the next step, 3-6 words>   (only when there is a <goal>)
+GOAL|<yes or no>|<what this step does>   (only when there is a <goal>)
 1|<tone>|<reply>|<why this works, under 8 words>
 2|<tone>|<reply>|<why>
 3|<tone>|<reply>|<why>
@@ -32,7 +33,7 @@ VIBE|mood|what they want|language|yes or no (yes if they want space)
 1|tone|reply|why
 2|tone|reply|why
 3|tone|reply|why
-If there is a <goal>, add one GOAL|stage|next step line right after VIBE.
+If there is a <goal>, follow its step: replies move toward it slowly and only say it when told to.
 
 Example:
 VIBE|excited|sharing good news|English|no
@@ -71,22 +72,27 @@ export function rulesBlock(rules: Rules | null, note?: string, presetName?: stri
 }
 
 /**
- * A goal the person wants the chat to reach without saying it outright. Suggestions plan a natural path there
- * over a few exchanges: answer what was said, then move one honest step closer.
+ * Steer: the person's goal for this chat and the one step this reply should take toward it. The step comes
+ * from code (see goal.ts), so the model can't rush it: before the last step, no option may say it yet.
  */
-export function goalBlock(goal?: string, compact = false): string {
-  if (!goal?.trim()) return "";
-  // Small models lose the format under long instructions; they get the gist, and Charmly judges progress itself.
-  if (compact) return `<goal>Gently steer toward: "${goal.trim()}" over a few messages. Each reply answers them first, then moves one small step closer. Only say it outright once the chat is warm. Be honest, no pressure.</goal>
-
-`;
+export function goalBlock(goal?: Goal | null, compact = false): string {
+  if (!goal?.text.trim()) return "";
+  const { index, total, step, final } = stepOf(goal);
+  const plan = PLANS[goal.pace].map((x, i) => `${i + 1}. ${x.name}${i === index ? "  <- this reply" : ""}`).join("\n");
+  const hold = final
+    ? `This is the moment: all three options say or ask "${goal.text.trim()}", clearly and kindly, each in a different way.`
+    : `All three options take this step only. None of them may say or ask "${goal.text.trim()}" yet; that comes at step ${total}.`;
+  // Small models lose the format under long instructions, so on-device gets the gist.
+  if (compact)
+    return `<goal>Goal for later, not now: "${goal.text.trim()}". This reply is step ${index + 1} of ${total}: ${step.name}. ${step.guide} ${final ? `Now is the moment: all three replies must say or ask it, clearly and kindly, each in a different way.` : "Do not say or ask the goal yet."}</goal>\n\n`;
   return `<goal>
-The person wants this conversation to eventually get to: "${goal.trim()}". They don't want to jump straight to it.
-Plan a natural path over the next few exchanges, typically: find common ground, open the topic, then say or ask it.
-- Every reply must still answer what was just said. Move one step closer, not three.
-- Judge how ready the chat is. Only say or ask it outright when the chat has got there.
-- Be honest: no tricks, no false pretexts, no guilt or pressure. If they seem to want space, pause the goal and just reply kindly.
-After the VIBE line, add: GOAL|<1 = far off, 2 = getting close, 3 = ready to say it>|<the next step, 3-6 words>
+The person wants this chat to get to: "${goal.text.trim()}", slowly, over a few back-and-forths. Plan:
+${plan}
+This reply is step ${index + 1} of ${total}: ${step.name}. ${step.guide}
+${hold}
+- Every option must still answer what they just said first. Nudge, don't steer hard.
+- Be honest: no tricks, no false pretexts, no guilt or pressure. If they seem to want space, don't push the goal at all.
+After the VIBE line, add: GOAL|<yes if they have already brought up the goal's topic or invited it themselves, else no>|<what this step does, 4-8 words>
 In each reply's "why", say how it moves toward the goal.
 </goal>
 
@@ -102,7 +108,7 @@ export function buildPrompt(
   rules?: Rules | null,
   note?: string,
   presetName?: string,
-  goal?: string,
+  goal?: Goal | null,
   compact = false,
 ): string {
   const transcript = chat.map((m) => `${m.speaker === "me" ? "Me" : "Them"}: ${m.text}`).join("\n");

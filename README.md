@@ -12,11 +12,12 @@ Charmly is a Chrome extension for WhatsApp Web. When a new message arrives in th
 - **A read of the vibe.** "excited · sharing news · English + Tamil". If the other person seems tired or wants space, Charmly says so, keeps every option gentle and switches flirty off.
 - **Your voice, learnt locally.** Charmly builds a small style profile from your own sent messages: typical length, emoji habits, lowercase or not, your "haha"s and "da"s. Only that summary is kept, it's visible in the popup, and you can clear it with one click.
 - **Tones on tap.** Warm, Playful, Direct, and Flirty (opt-in) chips change which kind of reply leads. Charmly names the three tones to write, in order, so the one you tap always comes first, and in flirt mode a flirty option stays in the mix.
-- **Steer toward what you want to say.** Some things are better reached than blurted: asking someone out, asking for money back, telling a friend you're moving. Tap 🎯, write the goal, and every suggestion still answers what they said while moving one natural step closer. The tray shows how close the chat is and the next step. It pauses itself if they want space. [More below](#steer).
+- **Steer toward what you want to say.** Some things are better reached than blurted: asking someone out, asking for money back, telling a friend you're moving. Set a goal and a pace (3, 4 or 5 exchanges), and Charmly drives the chat there slowly: one step per back-and-forth, and it only says it on the last step. [More below](#steer).
 - **Polish my draft.** Start typing your own reply, whether the tray is tucked away or showing suggestions, and Charmly offers to polish it in your voice.
 - **Keyboard first.** `Alt+1/2/3` inserts a suggestion, `Alt+R` regenerates, `Alt+P` polishes your draft, `Esc` tucks the tray away.
-- **Voice presets.** Tell Charmly who you are and how you talk in each kind of chat: what to always do, what never to do, and words it must never use. Four editable starters ship (😎 Friends, 💼 Work, 🏡 Family, 💫 Dating), and you can add your own. Switch presets from a chip in the tray. Charmly remembers the choice per chat, and ✎ adds a note for that chat ("my manager: keep it brief").
-- **Three engines, switchable in the chat.** The engine chip in the tray ("💻 llama3.2:3b" or "☁ Claude") opens a menu of your installed local models, plus Claude and Demo. **On-device** runs a small model on your laptop through [Ollama](https://ollama.com), so your chats never leave the machine. **Claude** gives the best quality with your Anthropic key. **Demo** lets you try the experience with built-in samples.
+- **One chip for everything about a chat.** The tray has one line of context: the vibe, plus a chip summing up this chat's setup ("😎 Friends · 💻 llama3.2:3b"). The chip opens a single sheet with the voice preset, the goal, a note and the engine. A thin goal strip shows only while you're steering.
+- **Voice presets.** Tell Charmly who you are and how you talk in each kind of chat: what to always do, what never to do, and words it must never use. Four editable starters ship (😎 Friends, 💼 Work, 🏡 Family, 💫 Dating), and you can add your own. Switch presets from the tray's sheet, which also holds a note for the chat ("my manager: keep it brief"). Charmly remembers both per chat.
+- **Three engines, switchable in the chat.** The sheet lists your installed local models, plus Claude and Demo. **On-device** runs a small model on your laptop through [Ollama](https://ollama.com), so your chats never leave the machine. **Claude** gives the best quality with your Anthropic key. **Demo** lets you try the experience with built-in samples.
 - **Native feel.** A glass tray docked above the message box that follows WhatsApp's light or dark theme, measured from the page itself rather than the system setting.
 
 <p align="center"><img src="docs/suggestions-dark.jpg" width="68%" alt="Dark theme" /> &nbsp; <img src="docs/popup.png" width="24%" alt="The popup: switches, tone, API key, demo mode, your voice" /></p>
@@ -64,7 +65,7 @@ The adapter includes a health check the popup shows, so if WhatsApp changes its 
 
 ## Voice presets
 
-<p align="center"><img src="docs/presets-menu.jpg" width="49%" alt="Switching presets from the tray" /> <img src="docs/presets.jpg" width="49%" alt="The preset editor" /></p>
+![The preset editor](docs/presets.jpg)
 
 Each preset is your voice for one kind of chat:
 - **About you & how you talk:** free text in your own words, the strongest guidance.
@@ -75,18 +76,25 @@ The editor shows exactly what Charmly adds to each request. A chat uses the pres
 
 ## Steer
 
-![Steering a chat toward asking them out for coffee](docs/steer.jpg)
+![Steering a chat toward asking them out for coffee, on the last step](docs/steer.jpg)
 
-A goal is a quiet instruction for one chat, like "ask them out for coffee". With one set, Claude plans a path over the next few exchanges:
-1. find common ground;
-2. open the topic;
-3. say it, only once the chat is ready.
+A goal is a quiet instruction for one chat, like "ask them out for coffee", reached **slowly**. The plan is in code, not left to the model:
 
-Each reply still answers what was just said and moves one step, not three. Before the replies, Claude writes a `GOAL|stage|next step` line, which the tray shows as a three-step bar: "getting close · next: open the topic lightly". Each card's *why* says how it moves toward the goal.
+| Pace | Steps, one per back-and-forth |
+|---|---|
+| Quick · 3 | find common ground → bridge to the topic → say it |
+| Natural · 4 | find common ground → bridge to the topic → test the water → say it |
+| Slow · 5 | build rapport → find common ground → bridge to the topic → test the water → say it |
 
-Steering is honest by design. The prompt rules out tricks, false pretexts, guilt and pressure. When the vibe says they want space, the bar turns amber and the replies just answer kindly. Tap **Done ✓** when you've said it.
+- **Steps follow the conversation, not the history.** A new goal always starts at step 1, however long the chat already is. Your reply finishes a step; their answer starts the next. Several messages in a row count once.
+- **The ask is held back, twice.** Each request names the current step and tells the model that no option may say it before the last step. Code backs that up: before the last step, an option that makes the ask (an invitation like "want to / can we / if you're free" with the goal's topic) is held back, unless they opened the door themselves. On the last step, all three options say it, in different ways.
+- **The strip in the tray** shows the plan as bars, where you are ("step 2 of 4 · bridge to the topic, not saying it yet"), and "step 2 done, next when they reply" after you send. Once the tray is tucked away, the pill keeps a small "🎯 2/4" chip.
+- **You stay in charge.** **Skip ›** moves on by hand. If they bring the topic up themselves ("need a coffee so badly"), the strip offers **Say it now ›**. If they seem to want space, the plan pauses and holds its step. After you've said it, **Done ✓** ends the goal, or **Keep going** keeps steering.
+- **Honest by design.** The prompt rules out tricks, false pretexts, guilt and pressure.
 
-Small on-device models lose the output format under long instructions. On-device, Charmly sends a two-line version of the goal and judges progress itself from how long and warm the chat is, the same way it reads the vibe. Goals are stored per chat in your browser and listed on the presets page.
+Claude gets the whole plan and reports whether they've opened the door themselves (a `GOAL|yes/no|note` line). The on-device model gets a two-line version of the current step, which small models follow more reliably, and Charmly spots the door-opening itself. Goals and their steps are stored per chat in your browser.
+
+<p align="center"><img src="docs/sheet.jpg" width="80%" alt="The sheet: voice, goal and pace, note, engine" /></p>
 
 ## On-device with Ollama
 
@@ -136,8 +144,9 @@ pnpm e2e                      # the real extension in Chrome, on a local chat pa
 
 ```
   ✓ docks as a small pill above the message box
+  ✓ credits Balaji Sri Raj in the tray
   ✓ streams three suggestions (3)
-  ✓ reads the vibe: "excited · sharing news · English"
+  ✓ reads the vibe: "excited · sharing news"
   ✓ matches the chat's light theme
   ✓ tapping a card inserts it into the message box
   ✓ nothing is sent automatically
@@ -154,28 +163,46 @@ pnpm e2e                      # the real extension in Chrome, on a local chat pa
   ✓ flirt mode: Flirty leads and stays selected (flirty, chip 💫 Flirty)
   ✓ typing while suggestions are open offers Polish
   ✓ polishes that draft, then hides the offer
-  ✓ shows the goal and the next step ("🎯 ask them out for coffee ready to say it · next: say it, kindly and clearly")
-  ✓ a suggestion moves toward the goal
-  ✓ pauses the goal when they want space
-  ✓ Done ✓ stops steering
-  ✓ lists local models (llama3.2:3b)
-  ✓ on-device engine streams suggestions
-  ✓ on-device replies (3): "okay, let's not push you today, take a rest" · "snooze fest planned 😴👍" · "no worries, sleep tight, we can catch up soon"
-  ✓ labels the tray on-device
-  ✓ keeps the space-aware read on-device
-  ✓ the tray shows the on-device model (💻 llama3.2:3b ▾)
-  ✓ the engine menu lists local models (llama3.2:3b)
-  ✓ switches to Demo from the tray
-  ✓ and back to the local model
-  ✓ preset menu lists the starter presets
+  ✓ one sheet holds voice, goal, note and engine
+  ✓ goal pace: Quick, Natural or Slow, Natural by default
+  ✓ an example fills the goal
+  ✓ starts at step 1 of 4 even in a chat with history ("step 1 of 4 · find common ground, not saying it yet")
+  ✓ holds the ask back
+  ✓ no suggestion says it on step 1
+  ✓ after you reply, the pill shows "1/4 · waiting for them"
+  ✓ two messages in a row still count as one step
+  ✓ suggestions take step 2
+  ✓ drives the chat step by step: find common ground → bridge to the topic → test the water → say it
+  ✓ only the last step says it
+  ✓ after you send it, the goal shows as said
+  ✓ Stop ends steering
+  ✓ Quick pace plans three steps
+  ✓ they mention it first: offers 'Say it now' ("they brought it up themselves")
+  ✓ Say it now jumps to the last step
+  ✓ pauses when they want space ("paused, they may want space")
+  ✓ and holds the step
+  ✓ Skip › moves on by hand
+  ✓ another chat has no goal
+  ✓ the goal and its step are remembered for this chat (2/4)
+  ✓ lists local models (tiny:1b)
+  ✓ the sheet lists the starter presets
   ✓ the chat now shows the Work preset
+  ✓ on-device engine streams suggestions
+  ✓ on-device replies (2): "recharge mode activated 🔋 talk tomorrow?" · "all good, message me whenever"
+  ✓ the tray shows the on-device model (💼 Work · 💻 tiny:1b · ✎ ▾)
+  ✓ keeps the space-aware read on-device
+  ✓ sent a streaming chat request to Ollama
   ✓ the Work preset's rules reach the model
   ✓ the chat note reaches the model
+  ✓ the goal's current step reaches the on-device model
   ✓ a word blocked in the preset is never shown
   ✓ preset and note are remembered for this chat
+  ✓ the engine menu lists local models (tiny:1b)
+  ✓ switches to Demo from the tray
+  ✓ and back to the local model
 ```
 
-By default the on-device checks run against a stand-in that speaks Ollama's API and answers in a deliberately messy small-model format, so CI covers them. `OLLAMA_E2E=http://localhost:11434 OLLAMA_MODEL=llama3.2:3b pnpm e2e` runs them against a real model, which produced the output above.
+By default the on-device checks run against a stand-in that speaks Ollama's API and answers in a deliberately messy small-model format, so CI covers them. `OLLAMA_E2E=http://localhost:11434 OLLAMA_MODEL=llama3.2:3b pnpm e2e` runs them against a real model, which also passes.
 
 ## Layout
 

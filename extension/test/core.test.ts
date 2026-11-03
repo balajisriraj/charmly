@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { demo } from "../src/shared/demo";
+import { again, makesAsk, newGoal, normaliseGoal, onMessage, PLANS, quickRead, sayNow, skip, stepOf, topicWords } from "../src/shared/goal";
 import { LineParser } from "../src/shared/parse";
 import { buildPrompt, lineup } from "../src/shared/prompt";
 import { check } from "../src/shared/safety";
@@ -149,31 +150,93 @@ describe("voice presets", () => {
   });
 });
 
-describe("steer toward a goal", () => {
+describe("steer: the conversation driver", () => {
+  const coffee = newGoal("ask them out for coffee", 4);
   const chat = [
     { speaker: "them" as const, text: "haha that movie was so good" },
     { speaker: "me" as const, text: "right?? the ending!" },
     { speaker: "them" as const, text: "are you free this weekend?" },
-    { speaker: "me" as const, text: "maybe, why?" },
   ];
-  it("puts the goal in the prompt, but not when polishing a draft", () => {
-    const p = buildPrompt(chat, "warm", true, null, undefined, null, undefined, undefined, "ask them out for coffee");
-    expect(p).toContain('<goal>\nThe person wants this conversation to eventually get to: "ask them out for coffee"');
-    expect(p).toContain("no tricks");
-    expect(buildPrompt(chat, "warm", true, null, "hey", null, undefined, undefined, "ask them out")).not.toContain("<goal>");
+  it("plans 3, 4 or 5 steps, and only the last one says it", () => {
+    expect(PLANS[3].map((x) => x.id)).toEqual(["common", "bridge", "ask"]);
+    expect(PLANS[4].map((x) => x.id)).toEqual(["common", "bridge", "hint", "ask"]);
+    expect(PLANS[5].map((x) => x.id)).toEqual(["rapport", "common", "bridge", "hint", "ask"]);
   });
-  it("parses the GOAL line, loosely", () => {
-    const goals: unknown[] = [];
-    const p = new LineParser(() => {}, () => {}, 3, (g) => goals.push(g));
-    p.push("VIBE|happy|making plans|English|no\nGOAL|2|open the topic lightly\nGoal: stage 3 | ask it\n");
+  it("starts at step 1 however long the chat already is", () => {
+    const long = Array.from({ length: 30 }, (_, i) => ({ speaker: (i % 2 ? "me" : "them") as "me" | "them", text: "haha nice" }));
+    const p = buildPrompt(long, "warm", false, null, undefined, null, undefined, undefined, coffee);
+    expect(p).toContain("This reply is step 1 of 4: find common ground");
+    expect(p).toContain('None of them may say or ask "ask them out for coffee" yet; that comes at step 4');
+  });
+  it("moves one step per back-and-forth: your reply, then their answer", () => {
+    let g = coffee;
+    g = onMessage(g, "them"); // they talk first: nothing to finish yet
+    expect(g.step).toBe(0);
+    g = onMessage(g, "me");
+    expect([g.step, g.awaiting]).toEqual([0, true]);
+    g = onMessage(g, "me"); // a second message in a row counts once
+    g = onMessage(g, "them");
+    expect([g.step, g.awaiting]).toEqual([1, false]);
+    g = onMessage(onMessage(g, "me"), "them");
+    g = onMessage(onMessage(g, "me"), "them");
+    expect(stepOf(g)).toMatchObject({ index: 3, final: true });
+    expect(g.said).toBe(false);
+    g = onMessage(g, "me");
+    expect(g.said).toBe(true);
+    expect(onMessage(g, "them").step).toBe(3); // never past the end
+  });
+  it("holds the step when they want space", () => {
+    const g = onMessage(onMessage(coffee, "me"), "them", true);
+    expect(g.step).toBe(0);
+  });
+  it("tells the model to say it only on the last step", () => {
+    const last = sayNow(coffee);
+    const p = buildPrompt(chat, "warm", false, null, undefined, null, undefined, undefined, last);
+    expect(p).toContain("step 4 of 4: say it");
+    expect(p).toContain("This is the moment");
+    expect(p).not.toContain("None of them may say");
+    expect(p).toContain("all three options say or ask");
+    expect(buildPrompt(chat, "warm", false, null, undefined, null, undefined, undefined, coffee, true)).toContain("Do not say or ask the goal yet");
+    expect(buildPrompt(chat, "warm", false, null, "hey", null, undefined, undefined, coffee)).not.toContain("<goal>");
+  });
+  it("skip, say it now and keep steering", () => {
+    expect(skip(coffee).step).toBe(1);
+    expect(skip(sayNow(coffee)).step).toBe(3);
+    expect(again({ ...sayNow(coffee), said: true, awaiting: true })).toMatchObject({ said: false, awaiting: false, step: 3 });
+  });
+  it("reads old stored goals and bad values safely", () => {
+    expect(normaliseGoal("ask them out")).toMatchObject({ text: "ask them out", pace: 4, step: 0 });
+    expect(normaliseGoal({ text: "x", pace: 9, step: 99 })).toMatchObject({ pace: 4, step: 3 });
+    expect(normaliseGoal({ text: " " })).toBeNull();
+  });
+  it("notices when they bring the topic up themselves", () => {
+    expect(topicWords("ask them out for coffee")).toEqual(expect.arrayContaining(["coffee", "cafe"]));
+    expect(quickRead([{ speaker: "them", text: "borrowed some money from you a while back" }], newGoal("ask for the 200 dollars they owe me")).ahead).toBe(true);
+    expect(quickRead([{ speaker: "them", text: "need a coffee so bad today" }], coffee).ahead).toBe(true);
+    expect(quickRead([{ speaker: "them", text: "long day at work" }], coffee).ahead).toBe(false);
+  });
+  it("spots a reply that makes the ask, so it can wait for the last step", () => {
+    expect(makesAsk("want to grab a cup sometime soon?", coffee)).toBe(true);
+    expect(makesAsk("thinking of grabbing coffee this weekend, if you're free?", coffee)).toBe(true);
+    expect(makesAsk("do you like coffee?", coffee)).toBe(false); // bridging, not asking
+    expect(makesAsk("I'd love to try that cafe", coffee)).toBe(false);
+    const money = newGoal("ask for the 200 dollars they owe me, gently");
+    expect(makesAsk("so can you come through with that $200 I'm owed?", money)).toBe(true);
+    expect(makesAsk("bills are the worst haha", money)).toBe(false);
+  });
+  it("parses the model's GOAL read", () => {
+    const reads: unknown[] = [];
+    const p = new LineParser(() => {}, () => {}, 3, (g) => reads.push(g));
+    p.push("VIBE|happy|chatting|English|no\nGOAL|no|drifts toward cafes\nGoal: yes | they asked first\n");
     p.end();
-    expect(goals).toEqual([{ stage: 2, step: "open the topic lightly" }, { stage: 3, step: "ask it" }]);
+    expect(reads).toEqual([{ ahead: false, note: "drifts toward cafes" }, { ahead: true, note: "they asked first" }]);
   });
-  it("demo steers its last option and pauses when they want space", () => {
-    const out = demo(chat, "warm", false, undefined, "ask them out for coffee");
-    expect(out.goal?.stage).toBe(3);
-    expect(out.suggestions[2].why).toContain("goal");
-    expect(demo([{ speaker: "them", text: "so tired, talk later" }], "warm", false, undefined, "ask them out").goal).toBeUndefined();
+  it("demo takes the current step and pauses when they want space", () => {
+    const out = demo(chat, "warm", false, undefined, coffee);
+    expect(out.suggestions[2].why).toBe("step 1 of 4: find common ground");
+    expect(out.suggestions.some((x) => /say it/.test(x.text))).toBe(false);
+    expect(demo(chat, "warm", false, undefined, sayNow(coffee)).suggestions[2].text).toContain("I'll just say it");
+    expect(demo([{ speaker: "them", text: "so tired, talk later" }], "warm", false, undefined, coffee).read).toBeUndefined();
   });
 });
 

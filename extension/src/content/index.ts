@@ -1,5 +1,7 @@
 // Content script: watches the open WhatsApp chat, asks for suggestions when a new message arrives,
 // and inserts the one you pick into the message box. It never sends anything.
+import { quickVibe } from "../shared/demo";
+import { again, type Goal, newGoal, normaliseGoal, onMessage, sayNow, skip } from "../shared/goal";
 import { profile } from "../shared/style";
 import { DEFAULTS, normalise, normalisePresets, type Settings, type StreamEvent, type StyleProfile, type Tone } from "../shared/types";
 import { Tray } from "./tray";
@@ -18,15 +20,33 @@ let polishedFrom = ""; // the draft the open suggestions were polished from
 
 let chatPresets: Record<string, string> = {};
 let chatNotes: Record<string, string> = {};
-let chatGoals: Record<string, string> = {};
+let chatGoals: Record<string, Goal> = {};
+
+const readGoals = (raw: unknown) =>
+  Object.fromEntries(Object.entries((raw as Record<string, unknown>) ?? {}).flatMap(([k, v]) => {
+    const g = normaliseGoal(v);
+    return g ? [[k, g]] : [];
+  })) as Record<string, Goal>;
+
+/** Save this chat's goal (or clear it) and show it. */
+async function setGoal(goal: Goal | null) {
+  const chat = wa.chat();
+  if (!chat) return;
+  chatGoals = { ...chatGoals };
+  if (goal) chatGoals[chat] = goal;
+  else delete chatGoals[chat];
+  tray.goal = goal;
+  tray.refresh();
+  await chrome.storage.local.set({ chatGoals });
+}
 
 /** Load this chat's preset and note into the tray. Chat names never leave the browser. */
 function applyChat() {
   const chat = wa.chat() ?? "";
   tray.preset = chat in chatPresets ? chatPresets[chat] : settings.preset;
   tray.note = chatNotes[chat] ?? "";
-  const goal = chatGoals[chat] ?? "";
-  if (goal !== tray.goal) tray.progress = null;
+  const goal = chatGoals[chat] ?? null;
+  if (goal?.text !== tray.goal?.text) tray.read = null;
   tray.goal = goal;
 }
 
@@ -58,14 +78,16 @@ const tray = new Tray({
     await chrome.storage.local.set({ chatNotes });
     if (tray.open) request(tray.tone);
   },
-  saveGoal: async (goal) => {
-    const chat = wa.chat();
-    if (!chat) return;
-    chatGoals = { ...chatGoals };
-    if (goal) chatGoals[chat] = goal;
-    else delete chatGoals[chat];
-    await chrome.storage.local.set({ chatGoals });
-    if (goal && (tray.open || wa.messages(1).length)) request(tray.tone);
+  saveGoal: async (text, pace) => {
+    await setGoal(text ? newGoal(text, pace) : null);
+    if (text && wa.messages(1).length) request(tray.tone);
+  },
+  goalAction: async (action) => {
+    const g = tray.goal;
+    if (!g) return;
+    if (action === "done") return setGoal(null);
+    await setGoal(action === "skip" ? skip(g) : action === "now" ? sayNow(g) : again(g));
+    if (action !== "again") request(tray.tone);
   },
   editPresets: () => void chrome.runtime.sendMessage({ type: "open-options" }),
   suggest: (tone) => request(tone),
@@ -129,7 +151,7 @@ function request(tone: Tone, draft?: string) {
     if (e.id !== current) return;
     if (e.type === "vibe") tray.vibe(e.vibe);
     else if (e.type === "goal") {
-      tray.progress = e.goal;
+      tray.read = e.read;
       tray.refresh();
     }
     else if (e.type === "suggestion") tray.add(e.suggestion);
@@ -137,7 +159,7 @@ function request(tone: Tone, draft?: string) {
     else if (e.type === "error") tray.set({ kind: "error", message: e.message });
     sync();
   });
-  port.postMessage({ type: "suggest", id, chat, tone, draft: draft || undefined, preset: tray.preset, note: tray.note || undefined, goal: tray.goal || undefined });
+  port.postMessage({ type: "suggest", id, chat, tone, draft: draft || undefined, preset: tray.preset, note: tray.note || undefined, goal: tray.goal ?? undefined });
 }
 
 /** Learn the user's style from their own sent messages in the open chat. Only a summary is stored. */
@@ -165,6 +187,11 @@ function tick() {
   if (key && key !== lastKey) {
     lastKey = key;
     const incoming = key.startsWith("in:");
+    // The conversation driver: your reply finishes this step, their answer starts the next.
+    if (tray.goal) {
+      const next = onMessage(tray.goal, incoming ? "them" : "me", incoming && quickVibe(wa.messages(6)).boundary);
+      if (next !== tray.goal) void setGoal(next);
+    }
     if (!incoming) {
       void learn();
       tray.set({ kind: "pill", draft: false });
@@ -235,7 +262,7 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes.presets) tray.presets = normalisePresets(changes.presets.newValue);
   if (changes.chatPresets) chatPresets = (changes.chatPresets.newValue as Record<string, string>) ?? {};
   if (changes.chatNotes) chatNotes = (changes.chatNotes.newValue as Record<string, string>) ?? {};
-  if (changes.chatGoals) chatGoals = (changes.chatGoals.newValue as Record<string, string>) ?? {};
+  if (changes.chatGoals) chatGoals = readGoals(changes.chatGoals.newValue);
   if (changes.settings || changes.presets || changes.chatPresets || changes.chatNotes || changes.chatGoals) {
     applyChat();
     sync();
@@ -246,7 +273,7 @@ chrome.storage.onChanged.addListener((changes) => {
 window.addEventListener("resize", () => tray.place(wa.footer(), wa.dark()));
 
 chrome.storage.local.get(["settings", "presets", "chatPresets", "chatNotes", "chatGoals"]).then(({ settings: saved, presets, chatPresets: cp, chatNotes: cn, chatGoals: cg }) => {
-  chatGoals = (cg as Record<string, string>) ?? {};
+  chatGoals = readGoals(cg);
   settings = normalise(saved);
   tray.tone = settings.flirty || settings.tone !== "flirty" ? settings.tone : "warm";
   tray.presets = normalisePresets(presets);

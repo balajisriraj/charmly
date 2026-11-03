@@ -1,9 +1,10 @@
-import type { GoalProgress, Suggestion, Vibe } from "./types";
+import type { GoalRead } from "./goal";
+import type { Suggestion, Vibe } from "./types";
 
 /**
  * The writer streams one record per line, so suggestions can be shown the moment each line completes:
  *   VIBE|mood|intent|language|boundary
- *   GOAL|stage|next step            (only when the person set a goal for the chat)
+ *   GOAL|ahead|note                 (only when the person set a goal for the chat)
  *   1|tone|text|why
  * Lines that don't fit are ignored rather than shown.
  */
@@ -17,7 +18,7 @@ export class LineParser {
     private readonly onVibe: (v: Vibe) => void,
     private readonly onSuggestion: (s: Suggestion) => void,
     private readonly max = 3,
-    private readonly onGoal: (g: GoalProgress) => void = () => {},
+    private readonly onGoal: (g: GoalRead) => void = () => {},
   ) {}
 
   push(chunk: string) {
@@ -57,8 +58,7 @@ export class LineParser {
       return;
     }
     if (parts[0].toUpperCase() === "GOAL" && parts.length >= 2) {
-      const stage = Math.min(3, Math.max(1, Number(parts[1].match(/\d/)?.[0] ?? 1))) as 1 | 2 | 3;
-      this.onGoal({ stage, step: (parts[2] ?? "").slice(0, 80) });
+      this.onGoal({ ahead: /^(yes|true|ahead)\b/i.test(parts[1]), note: (parts[2] ?? "").slice(0, 80) });
       return;
     }
     const pending = this.pendingTone;
@@ -76,14 +76,14 @@ export class LineParser {
     if (Number.isInteger(n) && n >= 1 && n <= 5 && parts.length >= 3) {
       const tone = parts[1];
       if (/^tone$/i.test(tone) && /^reply$/i.test(parts[2])) return; // the model echoed the template
-      if (/^(tone|reply|why)$/i.test(parts[2])) return;
+      if (/^(tone|reply|why|space|vibe|goal)$/i.test(parts[2].trim())) return;
       if (/^vibe$/i.test(tone)) {
         this.vibe(parts.slice(2));
         return;
       }
       // Replies never contain a pipe (the prompt says so), and small models add extra fields ("…|Friendly|why"),
       // so the reply is the third field and the rest is the why.
-      const text = parts[2];
+      const text = parts[2].replace(/^(reply|text|message)\s*:\s*/i, "").trim();
       const why = parts.slice(3).filter(Boolean).at(-1) ?? "";
       if (text) this.emit(KNOWN_TONES.test(tone) ? tone : "warm", text, why);
       return;

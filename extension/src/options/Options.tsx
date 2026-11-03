@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AUTHOR, AUTHOR_URL } from "../shared/brand";
+import { normaliseGoal } from "../shared/goal";
 import { rulesBlock } from "../shared/prompt";
 import { normalise, normalisePreset, normalisePresets, type Preset, type Settings, STARTER_PRESETS } from "../shared/types";
 
@@ -59,13 +60,13 @@ function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [chatPresets, setChatPresets] = useState<Record<string, string>>({});
-  const [goals, setGoals] = useState<Record<string, string>>({});
+  const [goals, setGoals] = useState<Record<string, unknown>>({});
   const [saved, setSaved] = useState(true);
   const loaded = useRef(false);
 
   useEffect(() => {
     chrome.storage.local.get(["presets", "settings", "chatNotes", "chatPresets", "chatGoals"]).then(({ presets, settings, chatNotes, chatPresets, chatGoals }) => {
-      setGoals((chatGoals as Record<string, string>) ?? {});
+      setGoals((chatGoals as Record<string, unknown>) ?? {});
       const list = normalisePresets(presets);
       setPresets(list);
       setSelected(new URLSearchParams(location.search).get("preset") ?? list[0]?.id ?? "");
@@ -242,7 +243,10 @@ function App() {
                   <b>{c}</b>
                   <span className="tag">{p ? `${p.emoji} ${p.name}` : c in chatPresets ? "No preset" : "Default"}</span>
                   <span className="note">
-                    {goals[c] ? `🎯 ${goals[c]}` : ""}
+                    {(() => {
+                      const g = normaliseGoal(goals[c]);
+                      return g ? `🎯 ${g.text} (${g.said ? "said" : `step ${g.step + 1} of ${g.pace}`})` : "";
+                    })()}
                     {goals[c] && notes[c] ? " · " : ""}
                     {notes[c] ?? ""}
                   </span>

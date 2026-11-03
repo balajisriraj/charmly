@@ -171,37 +171,118 @@ try {
     box.focus();
     document.execCommand("insertText", false, "sure, saturday works");
   });
-  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".draft-bar"), { timeout: 3000 }).catch(() => {});
-  check(await root(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.ready .draft-bar")), "typing while suggestions are open offers Polish");
-  await root(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".draft-bar [data-act=polish]").click());
+  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".foot [data-act=polish]"), { timeout: 3000 }).catch(() => {});
+  check(await root(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.ready .foot [data-act=polish]")), "typing while suggestions are open offers Polish");
+  await root(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".foot [data-act=polish]").click());
   await waitCards(3);
   const polished = await cards();
-  check(polished.every((t) => /saturday/i.test(t)) && (await root(() => !document.querySelector("charmly-tray").shadowRoot.querySelector(".draft-bar"))), "polishes that draft, then hides the offer");
+  check(polished.every((t) => /saturday/i.test(t)) && (await root(() => !document.querySelector("charmly-tray").shadowRoot.querySelector(".foot [data-act=polish]"))), "polishes that draft, then hides the offer");
 
-  // Steer: a quiet goal for the chat. Suggestions plan toward it and the tray shows how close it is.
+  // Steer: a goal reached slowly, one step per back-and-forth, said only on the last step.
+  await setSettings({ flirty: false, tone: "warm" });
   await page.evaluate(() => document.querySelector("[contenteditable]").replaceChildren());
-  await root(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".goal-btn").click());
-  await root(() => {
-    const r = document.querySelector("charmly-tray").shadowRoot;
-    r.querySelector(".goal-edit [data-act=goal-example]").click();
-    r.querySelector("[data-act=save-goal]").click();
-  });
-  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".goal-bar .steps i.on"), { timeout: 10000 }).catch(() => {});
-  await waitCards(3);
-  const bar = await root(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".goal-bar")?.textContent.replace(/\s+/g, " ").trim() ?? "");
-  check(/coffee/.test(bar) && /next:/.test(bar), `shows the goal and the next step ("${bar}")`);
-  const whys = await root(() => [...document.querySelector("charmly-tray").shadowRoot.querySelectorAll(".card .why")].map((e) => e.textContent));
-  check(whys.some((w) => /goal/.test(w)), "a suggestion moves toward the goal");
+  const R = "document.querySelector('charmly-tray').shadowRoot";
+  const q = (expr) => page.evaluate(`(() => { const r = ${R}; return ${expr}; })()`);
+  const act = (sel) => page.evaluate(`${R}.querySelector(${JSON.stringify(sel)}).click()`);
+  const status = () => q("r.querySelector('.goal .g-status')?.textContent ?? ''");
+  const chip = () => q("r.querySelector('.goal-chip span')?.textContent ?? ''");
+  const stepName = async () => (await status()).match(/· (.+?)(,|$)/)?.[1] ?? (await status());
+  const setGoal = async (text, pace) => {
+    await act(".setup");
+    if (pace) await act(`.paces [data-pace='${pace}']`);
+    await page.evaluate(`(() => { const i = ${R}.querySelector('[data-field=goal]'); i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    await act("[data-act=save-goal]");
+    await sleep(100);
+    await waitCards(3);
+  };
+  const sendLast = async () => {
+    // Insert the steering option (the third card), then press WhatsApp's send button, as a person would.
+    await act("button.card:nth-of-type(3)");
+    await sleep(150);
+    await page.evaluate(() => document.querySelector(".send").click());
+    await sleep(250);
+  };
+  const reply = async (text) => {
+    await page.evaluate((t) => window.chat.receive(t), text);
+    await sleep(800);
+    await waitCards(3);
+  };
+
+  await act(".setup");
+  check(await q("!!r.querySelector('.sheet .s-voice') && !!r.querySelector('.sheet .s-goal') && !!r.querySelector('.sheet .s-note') && !!r.querySelector('.sheet .s-engine')"), "one sheet holds voice, goal, note and engine");
+  check(await q("r.querySelectorAll('.paces button').length === 3 && r.querySelector('.paces button.on')?.textContent.includes('Natural')"), "goal pace: Quick, Natural or Slow, Natural by default");
   if (SHOTS) {
-    await sleep(500);
+    await sleep(300);
+    await page.screenshot({ path: resolve(ROOT, "../docs/sheet.png") });
+  }
+  await act(".s-goal [data-act=goal-example]");
+  check((await q("r.querySelector('[data-field=goal]').value")) === "ask them out for coffee", "an example fills the goal");
+  await act("[data-act=save-goal]");
+  await sleep(100);
+  await waitCards(3);
+  check((await q("r.querySelectorAll('.goal .bars i').length")) === 4 && (await stepName()) === "find common ground", `starts at step 1 of 4 even in a chat with history ("${await status()}")`);
+  check(/not saying it yet/.test(await status()), "holds the ask back");
+  check(!(await cards()).some((t) => /just say it/i.test(t)), "no suggestion says it on step 1");
+  const journey = [await stepName()];
+  await sendLast();
+  check((await chip()) === "1/4 · waiting for them", `after you reply, the pill shows "${await chip()}"`);
+  await page.evaluate(() => window.chat.send("also, the ending was wild"));
+  await sleep(200);
+  await reply("haha yes! honestly I've been exploring new places lately");
+  journey.push(await stepName());
+  check((await stepName()) === "bridge to the topic", "two messages in a row still count as one step");
+  check((await q("[...r.querySelectorAll('.card .why')].map((e) => e.textContent).join('|')")).includes("step 2 of 4"), "suggestions take step 2");
+  await sendLast();
+  await reply("oh nice, what kind of places?");
+  journey.push(await stepName());
+  await sendLast();
+  await reply("haha you've got me curious now");
+  journey.push(await stepName());
+  check(JSON.stringify(journey) === JSON.stringify(["find common ground", "bridge to the topic", "test the water", "say it"]), `drives the chat step by step: ${journey.join(" → ")}`);
+  check((await q("!!r.querySelector('.goal.final')")) && (await cards()).some((t) => /just say it/i.test(t)), "only the last step says it");
+  if (SHOTS) {
+    await sleep(400);
     await page.screenshot({ path: resolve(ROOT, "../docs/steer.png") });
   }
-  await page.evaluate(() => window.chat.receive("honestly so tired, talk later"));
-  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".goal-bar.paused"), { timeout: 10000 }).catch(() => {});
-  check(await root(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".goal-bar.paused")), "pauses the goal when they want space");
-  await root(() => document.querySelector("charmly-tray").shadowRoot.querySelector("[data-act=goal-done]").click());
+  await sendLast();
+  check((await chip()) === "said ✓", "after you send it, the goal shows as said");
+  await act(".goal-chip"); // opens the sheet
+  await act(".s-goal [data-act=goal-done]");
   await sleep(150);
-  check(await root(() => !document.querySelector("charmly-tray").shadowRoot.querySelector(".goal-bar")), "Done ✓ stops steering");
+  check(!(await q("!!r.querySelector('.goal-chip') || !!r.querySelector('.goal')")), "Stop ends steering");
+
+  // Quick pace, and they bring it up themselves: offer to say it now.
+  await reply("so what are you up to this week?");
+  await setGoal("ask them out for coffee", 3);
+  check((await q("r.querySelectorAll('.goal .bars i').length")) === 3, "Quick pace plans three steps");
+  await reply("ugh I need a coffee so badly right now ☕");
+  check(await q("!!r.querySelector('[data-act=goal-now]')"), `they mention it first: offers 'Say it now' ("${await status()}")`);
+  await act("[data-act=goal-now]");
+  await sleep(200);
+  await waitCards(3);
+  check((await stepName()) === "say it" && (await cards()).some((t) => /just say it/i.test(t)), "Say it now jumps to the last step");
+
+  // They want space: the plan holds. Skip moves on by hand.
+  await setGoal("ask them out for coffee", 4);
+  await sendLast();
+  await reply("honestly so tired, talk later");
+  check((await stepName()) === "paused, they may want space" || (await q("!!r.querySelector('.goal.paused')")), `pauses when they want space ("${await status()}")`);
+  check((await q("[...r.querySelectorAll('.goal .bars i')].findIndex((i) => i.classList.contains('now'))")) === 0, "and holds the step");
+  await act("[data-act=goal-skip]");
+  await sleep(150);
+  await waitCards(3);
+  check((await q("[...r.querySelectorAll('.goal .bars i')].findIndex((i) => i.classList.contains('now'))")) === 1, "Skip › moves on by hand");
+
+  // The step is remembered per chat.
+  await page.evaluate(() => window.chat.open("Ananya"));
+  await sleep(300);
+  check(!(await q("!!r.querySelector('.goal-chip')")), "another chat has no goal");
+  await page.evaluate(() => window.chat.open("Arjun"));
+  await sleep(300);
+  check((await chip()) === "2/4", `the goal and its step are remembered for this chat (${await chip()})`);
+  await act(".goal-chip");
+  await act(".s-goal [data-act=goal-done]");
+  await sleep(150);
   await setSettings({ flirty: false, tone: "warm" });
 
   // On-device engine: switch through the extension's own storage, then trigger a reply.
@@ -220,6 +301,8 @@ try {
   await setup.evaluate(async () => {
     const { presets } = await chrome.storage.local.get("presets");
     await chrome.storage.local.set({ presets: presets.map((p) => (p.id === "work" ? { ...p, blocked: [...p.blocked, "stress"] } : p)) });
+    // A goal on step 2 for this chat, to check the step reaches the on-device model.
+    await chrome.storage.local.set({ chatGoals: { Arjun: { text: "ask them out for coffee", pace: 4, step: 1, awaiting: false, said: false } } });
   });
   await setup.close();
   await page.bringToFront();
@@ -230,18 +313,17 @@ try {
   const shadow = (sel) => ({
     click: () => page.evaluate((sel) => document.querySelector("charmly-tray").shadowRoot.querySelector(sel).click(), sel),
   });
-  await (await shadow(".preset-chip")).click();
-  check(await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelectorAll(".menu [data-act=preset]").length >= 5), "preset menu lists the starter presets");
+  await (await shadow(".setup")).click();
+  check(await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelectorAll(".sheet [data-act=preset]").length >= 5), "the sheet lists the starter presets");
   if (SHOTS) {
     await sleep(300);
     await page.screenshot({ path: resolve(ROOT, "../docs/presets-menu.png") });
   }
-  await (await shadow('.menu [data-id="work"]')).click();
+  await (await shadow('.sheet [data-act=preset][data-id="work"]')).click();
   await sleep(150);
-  check((await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".preset-chip").textContent)).includes("Work"), "the chat now shows the Work preset");
-  await (await shadow(".note-btn")).click();
+  check((await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".setup").textContent)).includes("Work"), "the chat now shows the Work preset");
   await page.evaluate(() => {
-    const t = document.querySelector("charmly-tray").shadowRoot.querySelector(".note-edit textarea");
+    const t = document.querySelector("charmly-tray").shadowRoot.querySelector(".s-note textarea");
     t.value = "my manager, keep it brief";
   });
   await (await shadow('[data-act="save-note"]')).click();
@@ -259,7 +341,7 @@ try {
   const localErr = await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".err")?.textContent ?? null);
   check(!localErr, localErr ? `on-device error: ${localErr}` : "on-device engine streams suggestions");
   const localCards = await cards();
-  const badge = await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".engine-chip")?.textContent ?? "");
+  const badge = await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".setup")?.textContent ?? "");
   check(localCards.length >= (process.env.OLLAMA_E2E ? 2 : 1), `on-device replies (${localCards.length}): ${localCards.map((t) => `"${t}"`).join(" · ")}`);
   check(badge.includes(OLLAMA_MODEL), `the tray shows the on-device model (${badge.trim()})`);
 
@@ -271,7 +353,8 @@ try {
     const prompt = sent?.messages?.[1]?.content ?? "";
     check(prompt.includes("Voice preset: Work") && prompt.includes("- Use emojis"), "the Work preset's rules reach the model");
     check(prompt.includes("my manager, keep it brief"), "the chat note reaches the model");
-    check(!localCards.some((t) => /stress/i.test(t)) && /held back/.test(await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".note")?.textContent ?? "")), "a word blocked in the preset is never shown");
+    check(prompt.includes('Goal for later, not now: "ask them out for coffee"') && prompt.includes("step 2 of 4: bridge to the topic") && prompt.includes("Do not say or ask the goal yet"), "the goal's current step reaches the on-device model");
+    check(!localCards.some((t) => /stress/i.test(t)) && /held back/.test(await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".held")?.textContent ?? "")), "a word blocked in the preset is never shown");
     const remembered = await (async () => {
       const p = await browser.newPage();
       await p.goto(`chrome-extension://${extId}/popup.html`);
@@ -284,17 +367,15 @@ try {
   }
 
   // Switch engines from the tray: open the engine menu, see the local models, pick Demo, then back to local.
-  await (await shadow(".engine-chip")).click();
-  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".engine-menu [data-engine=local]"), { timeout: 10000 });
-  const menuModels = await tray(() => [...document.querySelector("charmly-tray").shadowRoot.querySelectorAll(".engine-menu [data-engine=local]")].map((b) => b.dataset.model));
+  await (await shadow(".setup")).click();
+  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".s-engine [data-engine=local]"), { timeout: 10000 });
+  const menuModels = await tray(() => [...document.querySelector("charmly-tray").shadowRoot.querySelectorAll(".s-engine [data-engine=local]")].map((b) => b.dataset.model));
   check(menuModels.includes(OLLAMA_MODEL), `the engine menu lists local models (${menuModels.join(", ")})`);
-  await (await shadow('.engine-menu [data-engine="demo"]')).click();
-  await page.waitForFunction(() => /Demo/.test(document.querySelector("charmly-tray").shadowRoot.querySelector(".engine-chip").textContent), { timeout: 5000 });
+  await (await shadow('.s-engine [data-engine="demo"]')).click();
+  await page.waitForFunction(() => /Demo/.test(document.querySelector("charmly-tray").shadowRoot.querySelector(".setup").textContent), { timeout: 5000 });
   check(true, "switches to Demo from the tray");
-  await (await shadow(".engine-chip")).click();
-  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".engine-menu [data-engine=local]"), { timeout: 10000 });
-  await (await shadow(`.engine-menu [data-model="${OLLAMA_MODEL}"]`)).click();
-  await page.waitForFunction((m) => document.querySelector("charmly-tray").shadowRoot.querySelector(".engine-chip").textContent.includes(m), { timeout: 5000 }, OLLAMA_MODEL);
+  await (await shadow(`.s-engine [data-model="${OLLAMA_MODEL}"]`)).click();
+  await page.waitForFunction((m) => document.querySelector("charmly-tray").shadowRoot.querySelector(".setup").textContent.includes(m), { timeout: 5000 }, OLLAMA_MODEL);
   check(true, "and back to the local model");
 
   // The popup, rendered as a page for the screenshot.

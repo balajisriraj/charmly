@@ -1,5 +1,6 @@
 import { lineup } from "./prompt";
-import type { ChatMessage, GoalProgress, Suggestion, Tone, Vibe } from "./types";
+import { type Goal, type GoalRead, quickRead, stepOf } from "./goal";
+import type { ChatMessage, Suggestion, Tone, Vibe } from "./types";
 
 /**
  * Demo mode: believable suggestions without an API key, built from the last message.
@@ -20,16 +21,7 @@ export function quickVibe(chat: ChatMessage[]): Vibe {
   };
 }
 
-/** A quick local read of how close the chat is to the person's goal, for engines that don't report it. */
-export function goalFloor(chat: ChatMessage[], goal?: string): GoalProgress | undefined {
-  const t = ([...chat].reverse().find((m) => m.speaker === "them")?.text ?? "").toLowerCase();
-  if (!goal?.trim() || /\b(busy|tired|not now|later|leave me|space|stop)\b/.test(t)) return undefined;
-  const warm = /!|haha|😂|🤣|😊|☕|omg|amazing|free|tonight|tomorrow|weekend|plans?/.test(t);
-  const stage = (chat.length >= 8 || (warm && chat.length >= 4) ? 3 : chat.length >= 4 || warm ? 2 : 1) as 1 | 2 | 3;
-  return { stage, step: ["find some common ground", "open the topic lightly", "say it, kindly and clearly"][stage - 1] };
-}
-
-export function demo(chat: ChatMessage[], tone: Tone, flirty: boolean, draft?: string, goal?: string): { vibe: Vibe; suggestions: Suggestion[]; goal?: GoalProgress } {
+export function demo(chat: ChatMessage[], tone: Tone, flirty: boolean, draft?: string, goal?: Goal | null): { vibe: Vibe; suggestions: Suggestion[]; read?: GoalRead } {
   const last = [...chat].reverse().find((m) => m.speaker === "them")?.text ?? "";
   const t = last.toLowerCase();
   const asked = last.includes("?");
@@ -84,16 +76,19 @@ export function demo(chat: ChatMessage[], tone: Tone, flirty: boolean, draft?: s
     };
   }
   const options = lineup(tone, flirty && !pulling).map((t) => [t, ...lines[t]] as [Tone, string, string]);
-  // A goal: judge readiness from how warm and long the chat is, and make the last option the next step there.
-  const progress = draft ? undefined : goalFloor(chat, goal);
-  if (progress && goal) {
-    const { stage, step } = progress;
-    const bridge = [
-      "haha that reminds me, we should catch up properly sometime 😊",
-      "random thought, can I ask you something? [ease into: " + goal.trim() + "]",
-      "okay I'll just say it: [" + goal.trim() + "]",
-    ][stage - 1];
-    options[2] = [options[2][0], bridge, `moves toward your goal: ${step}`];
+  // A goal: the last option takes this step toward it; the others answer, tagged with the step.
+  let read: GoalRead | undefined;
+  if (goal && !draft && !pulling) {
+    read = quickRead(chat, goal);
+    const { index, total, step } = stepOf(goal);
+    const line: Record<string, string> = {
+      rapport: "haha love that. anyway, how's your week been going?",
+      common: `ooh nice, been anywhere good lately? [drift toward: ${goal.text}]`,
+      bridge: `that actually reminds me of something [bring up the topic of: ${goal.text}]`,
+      hint: "I've been meaning to ask you something actually 😊",
+      ask: `okay I'll just say it: [${goal.text}]`,
+    };
+    options[2] = [options[2][0], line[step.id], `step ${index + 1} of ${total}: ${step.name}`];
   }
-  return { goal: progress, vibe, suggestions: options.map(([toneId, text, why], i) => ({ n: i + 1, tone: toneId, text, why })) };
+  return { read, vibe, suggestions: options.map(([toneId, text, why], i) => ({ n: i + 1, tone: toneId, text, why })) };
 }

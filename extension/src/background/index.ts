@@ -2,7 +2,8 @@
 // stream text → line parser → safety filter → tray.
 //   claude: Anthropic's API with your key        local: Ollama on this laptop        demo: built-in samples
 import Anthropic from "@anthropic-ai/sdk";
-import { demo, goalFloor, quickVibe } from "../shared/demo";
+import { demo, quickVibe } from "../shared/demo";
+import { makesAsk, quickRead, stepOf } from "../shared/goal";
 import { listModels, OllamaError, streamChat } from "../shared/ollama";
 import { LineParser } from "../shared/parse";
 import { buildPrompt, LOCAL_SYSTEM, SYSTEM } from "../shared/prompt";
@@ -41,11 +42,15 @@ async function run(req: SuggestRequest, post: (e: StreamEvent) => void, signal: 
   const { settings, style, preset } = await load(req.preset);
   // A quick local read is the safety floor: if either it or the model sees them pulling back, stay gentle.
   const floor = quickVibe(req.chat);
+  const floorRead = req.goal ? quickRead(req.chat, req.goal) : { ahead: false, note: "" };
   let vibe: Vibe | null = null;
   let dropped = 0;
   let shown = 0;
+  // Steering: before the last step, an option that makes the ask is held back, unless they opened the door.
+  const holdAsk = !!req.goal && !req.draft && !stepOf(req.goal).final && !floorRead.ahead;
   const emit = (s: Suggestion) => {
     const verdict = check(s, vibe ?? floor, settings.flirty, preset?.blocked ?? []);
+    if (verdict.ok && holdAsk && req.goal && makesAsk(verdict.text, req.goal)) verdict.ok = false;
     if (!verdict.ok) {
       dropped++;
       return;
@@ -59,7 +64,7 @@ async function run(req: SuggestRequest, post: (e: StreamEvent) => void, signal: 
     await sleep(350);
     vibe = out.vibe;
     post({ type: "vibe", id: req.id, vibe });
-    if (out.goal) post({ type: "goal", id: req.id, goal: out.goal });
+    if (out.read) post({ type: "goal", id: req.id, read: out.read });
     for (const s of out.suggestions) {
       if (signal.aborted) return;
       await sleep(260);
@@ -83,7 +88,7 @@ async function run(req: SuggestRequest, post: (e: StreamEvent) => void, signal: 
       emit(s);
     },
     3,
-    (goal) => post({ type: "goal", id: req.id, goal }),
+    (read) => post({ type: "goal", id: req.id, read: { ...read, ahead: read.ahead || floorRead.ahead } }),
   );
   // When they seem to want space, don't even ask for a flirty line: the filter would only drop it.
   const prompt = buildPrompt(req.chat, req.tone, settings.flirty && !floor.boundary, style, req.draft, preset, req.note, preset?.name, req.goal, settings.engine === "local");
@@ -93,8 +98,7 @@ async function run(req: SuggestRequest, post: (e: StreamEvent) => void, signal: 
     // Small models often skip the vibe line, so show the local read straight away; the model's can replace it.
     vibe = floor;
     post({ type: "vibe", id: req.id, vibe });
-    const progress = req.draft ? undefined : goalFloor(req.chat, req.goal);
-    if (progress) post({ type: "goal", id: req.id, goal: progress });
+    if (req.goal && !req.draft) post({ type: "goal", id: req.id, read: floorRead });
     await streamChat({ url: settings.ollamaUrl, model: settings.ollamaModel, system: LOCAL_SYSTEM, prompt, signal }, (t) => {
       raw += t;
       parser.push(t);
