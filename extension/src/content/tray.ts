@@ -28,7 +28,7 @@ export class Tray {
   private shown = 0; // cards already on screen, so only new ones animate in
   tone: Tone = "warm";
   flirty = false;
-  demo = false;
+  badge = ""; // "demo" or "on-device"
 
   constructor(private readonly h: TrayHandlers) {
     this.host = document.createElement("charmly-tray");
@@ -120,7 +120,7 @@ export class Tray {
     const toneBar = `<div class="tones" role="group" aria-label="Tone">${tones
       .map((t) => `<button data-act="tone" data-tone="${t.id}" class="${t.id === this.tone ? "on" : ""}">${t.emoji} ${t.label}</button>`)
       .join("")}</div>`;
-    const brand = `<span class="mark" aria-hidden="true"></span><b>Charmly</b>${this.demo ? '<span class="demo">demo</span>' : ""}`;
+    const brand = `<span class="mark" aria-hidden="true"></span><b>Charmly</b>${this.badge ? `<span class="demo ${this.badge === "on-device" ? "local" : ""}">${this.badge}</span>` : ""}`;
     let body = "";
 
     if (s.kind === "pill") {

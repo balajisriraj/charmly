@@ -17,6 +17,27 @@ const server = createServer((req, res) => {
 }).listen(0);
 const url = `http://127.0.0.1:${server.address().port}/chat.html`;
 
+// On-device engine: a stand-in that speaks Ollama's API and answers in the messy format small models produce.
+// Set OLLAMA_E2E=http://localhost:11434 (and OLLAMA_MODEL) to run against a real Ollama instead.
+const ollamaRequests = [];
+const fakeOllama = createServer((req, res) => {
+  res.setHeader("access-control-allow-origin", "*");
+  res.setHeader("access-control-allow-headers", "content-type");
+  if (req.method === "OPTIONS") return res.end();
+  if (req.url === "/api/tags") return res.end(JSON.stringify({ models: [{ name: "tiny:1b", size: 8e8, details: { parameter_size: "1B" } }] }));
+  let body = "";
+  req.on("data", (c) => (body += c));
+  req.on("end", () => {
+    ollamaRequests.push(JSON.parse(body));
+    const reply = "1|tone|reply|why\nWarm|aww no stress, get some proper rest tonight\nPlayful: recharge mode activated 🔋 talk tomorrow?\n3|direct|all good, message me whenever|clear";
+    res.setHeader("content-type", "application/x-ndjson");
+    for (const piece of reply.match(/[\s\S]{1,12}/g)) res.write(JSON.stringify({ message: { content: piece }, done: false }) + "\n");
+    res.end(JSON.stringify({ done: true }) + "\n");
+  });
+}).listen(0);
+const OLLAMA = process.env.OLLAMA_E2E ?? `http://127.0.0.1:${fakeOllama.address().port}`;
+const OLLAMA_MODEL = process.env.OLLAMA_E2E ? (process.env.OLLAMA_MODEL ?? "llama3.2:3b") : "tiny:1b";
+
 const browser = await puppeteer.launch({
   executablePath: CHROME,
   headless: true,
@@ -109,10 +130,41 @@ try {
     await page.screenshot({ path: resolve(ROOT, "../docs/suggestions-dark.png") });
   }
 
+  // On-device engine: switch through the extension's own storage, then trigger a reply.
+  const sw = browser.targets().find((t) => t.type() === "service_worker");
+  const extId = new URL(sw.url()).host;
+  const popupPage = await browser.newPage();
+  await popupPage.goto(`chrome-extension://${extId}/popup.html`);
+  await popupPage.evaluate(async (ollamaUrl, ollamaModel) => {
+    const { settings } = await chrome.storage.local.get("settings");
+    await chrome.storage.local.set({ settings: { ...settings, engine: "local", ollamaUrl, ollamaModel } });
+  }, OLLAMA, OLLAMA_MODEL);
+  const listed = await popupPage.evaluate((url) => chrome.runtime.sendMessage({ type: "ollama-models", url }), OLLAMA);
+  check(listed.ok && listed.models.some((m) => m.name === OLLAMA_MODEL), `lists local models (${listed.ok ? listed.models.map((m) => m.name).join(", ") : listed.message})`);
+  await popupPage.close();
+  await page.bringToFront();
+  await page.keyboard.press("Escape"); // back to the pill, so the wait below sees the new request, not the old tray
+  await page.waitForFunction(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.pill"));
+  await page.evaluate(() => window.chat.receive("honestly so tired today, can we talk tomorrow"));
+  await page.waitForFunction(
+    () => {
+      const r = document.querySelector("charmly-tray").shadowRoot;
+      return r.querySelector(".err") || (r.querySelectorAll("button.card").length >= 2 && !r.querySelector(".skeleton") && r.querySelector(".tray.ready"));
+    },
+    { timeout: 90000 },
+  );
+  const localErr = await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".err")?.textContent ?? null);
+  check(!localErr, localErr ? `on-device error: ${localErr}` : "on-device engine streams suggestions");
+  const localCards = await cards();
+  const badge = await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".demo")?.textContent);
+  check(localCards.length >= 2, `on-device replies (${localCards.length}): ${localCards.map((t) => `"${t}"`).join(" · ")}`);
+  check(badge === "on-device", `labels the tray on-device (${badge})`);
+  check(await tray(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".vibe.careful")), "keeps the space-aware read on-device");
+  if (!process.env.OLLAMA_E2E) check(ollamaRequests.at(-1)?.model === "tiny:1b" && ollamaRequests.at(-1)?.stream === true, "sent a streaming chat request to Ollama");
+
   // The popup, rendered as a page for the screenshot.
   if (SHOTS) {
-    const sw = browser.targets().find((t) => t.type() === "service_worker");
-    const id = new URL(sw.url()).host;
+    const id = extId;
     const popup = await browser.newPage();
     await popup.setViewport({ width: 360, height: 760, deviceScaleFactor: 2 });
     await popup.goto(`chrome-extension://${id}/popup.html`);
@@ -125,6 +177,7 @@ try {
 } finally {
   await browser.close();
   server.close();
+  fakeOllama.close();
 }
 
 console.log(failures ? `\n${failures} check(s) failed` : "\nAll checks passed");

@@ -4,7 +4,8 @@ import type { Suggestion, Vibe } from "./types";
 const NEVER = [
   /\b(send|show) (me )?(nudes?|pics? of you)\b/i,
   /\b(stupid|idiot|dumb|ugly|fat|loser|crazy)\b/i,
-  /\b(you owe me|you have to|you must|or else|why are(n't| you not) you replying)\b/i,
+  // Pressure, not ordinary phrasing: "you must be so relieved" is fine, "you must reply" is not.
+  /\b(you owe me|or else|why are(n't| you not) you replying|(you have to|you must|you need to) (reply|answer|respond|text me|call me|see me))\b/i,
   /\b(f+u+c+k+|s+h+i+t+|b+i+t+c+h+)\b/i,
 ];
 // Pressure that is fine in banter but not when the other person is pulling back.

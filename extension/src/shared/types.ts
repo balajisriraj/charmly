@@ -11,18 +11,43 @@ export const TONES: { id: Tone; label: string; emoji: string }[] = [
 export type Vibe = { mood: string; intent: string; language: string; boundary: boolean };
 export type Suggestion = { n: number; tone: string; text: string; why: string };
 
+/** Where suggestions come from. "local" runs a model on this laptop through Ollama; nothing leaves the device. */
+export type Engine = "claude" | "local" | "demo";
+
 export type Settings = {
   enabled: boolean;
   auto: boolean; // suggest automatically when a new message arrives
   tone: Tone; // the tone the first suggestion leans towards
   flirty: boolean; // opt-in: allow flirty suggestions at all
+  engine: Engine;
   apiKey: string;
-  fast: boolean; // use the faster, smaller model
-  demo: boolean; // offline demo suggestions, no API key needed
+  fast: boolean; // Claude: use the faster, smaller model
+  ollamaUrl: string;
+  ollamaModel: string;
   contextSize: number;
 };
 
-export const DEFAULTS: Settings = { enabled: true, auto: true, tone: "warm", flirty: false, apiKey: "", fast: false, demo: false, contextSize: 12 };
+export const DEFAULTS: Settings = {
+  enabled: true,
+  auto: true,
+  tone: "warm",
+  flirty: false,
+  engine: "demo",
+  apiKey: "",
+  fast: false,
+  ollamaUrl: "http://localhost:11434",
+  ollamaModel: "",
+  contextSize: 12,
+};
+
+/** Fill in defaults and migrate older settings (which had a `demo` switch instead of an engine). */
+export function normalise(raw: unknown): Settings {
+  const s = { ...DEFAULTS, ...((raw as Partial<Settings> & { demo?: boolean }) ?? {}) };
+  const legacy = raw as { demo?: boolean; engine?: Engine } | undefined;
+  if (legacy && !legacy.engine) s.engine = legacy.demo || !s.apiKey ? "demo" : "claude";
+  delete (s as { demo?: boolean }).demo;
+  return s;
+}
 
 export type StyleProfile = {
   samples: string[]; // a few of your own short replies, newest first

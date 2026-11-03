@@ -1,7 +1,7 @@
 // Content script: watches the open WhatsApp chat, asks for suggestions when a new message arrives,
 // and inserts the one you pick into the message box. It never sends anything.
 import { profile } from "../shared/style";
-import { DEFAULTS, type Settings, type StreamEvent, type StyleProfile, type Tone } from "../shared/types";
+import { DEFAULTS, normalise, type Settings, type StreamEvent, type StyleProfile, type Tone } from "../shared/types";
 import { Tray } from "./tray";
 import { WhatsApp } from "./whatsapp";
 
@@ -48,7 +48,7 @@ async function put(text: string, index?: number) {
 function sync() {
   tray.tone = settings.tone;
   tray.flirty = settings.flirty;
-  tray.demo = settings.demo || !settings.apiKey;
+  tray.badge = settings.engine === "local" ? "on-device" : settings.engine === "demo" ? "demo" : "";
   tray.host.style.display = settings.enabled && wa.main() ? "" : "none";
   tray.place(wa.footer(), wa.dark());
 }
@@ -159,7 +159,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
 
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.settings) {
-    settings = { ...DEFAULTS, ...(changes.settings.newValue as Partial<Settings>) };
+    settings = normalise(changes.settings.newValue);
     sync();
   }
 });
@@ -167,7 +167,7 @@ chrome.storage.onChanged.addListener((changes) => {
 window.addEventListener("resize", () => tray.place(wa.footer(), wa.dark()));
 
 chrome.storage.local.get("settings").then(({ settings: saved }) => {
-  settings = { ...DEFAULTS, ...((saved as Partial<Settings>) ?? {}) };
+  settings = normalise(saved);
   lastChat = wa.chat();
   lastKey = wa.lastKey();
   observer.observe(document.body, { childList: true, subtree: true, characterData: true });

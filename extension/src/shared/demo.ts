@@ -4,6 +4,21 @@ import type { ChatMessage, Suggestion, Tone, Vibe } from "./types";
  * Demo mode: believable suggestions without an API key, built from the last message.
  * It exists so the extension can be tried and tested offline; it is labelled as a demo in the UI.
  */
+/** An instant, local read of the last message. Used as a safety floor when a model doesn't report a vibe. */
+export function quickVibe(chat: ChatMessage[]): Vibe {
+  const last = [...chat].reverse().find((m) => m.speaker === "them")?.text ?? "";
+  const t = last.toLowerCase();
+  const pulling = /\b(busy|tired|exhausted|not now|later|leave me|space|stop|not interested|go away|sleep)\b/.test(t);
+  const excited = /!|haha|😂|🤣|🥳|yay|omg|amazing|guess what/.test(t);
+  const plans = /\b(free|tonight|tomorrow|weekend|dinner|coffee|movie|meet|plans?)\b/.test(t);
+  return {
+    mood: pulling ? "tired" : excited ? "excited" : last.includes("?") ? "curious" : "relaxed",
+    intent: plans ? "making plans" : last.includes("?") ? "asking you something" : "sharing",
+    language: /\b(da|la|lah|machan|yaar|bro)\b/.test(t) ? "English + local slang" : "English",
+    boundary: pulling,
+  };
+}
+
 export function demo(chat: ChatMessage[], tone: Tone, flirty: boolean, draft?: string): { vibe: Vibe; suggestions: Suggestion[] } {
   const last = [...chat].reverse().find((m) => m.speaker === "them")?.text ?? "";
   const t = last.toLowerCase();

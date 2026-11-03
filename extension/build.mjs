@@ -19,8 +19,9 @@ const manifest = {
   action: { default_popup: "popup.html", default_title: "Charmly", default_icon: { 16: "icons/16.png", 32: "icons/32.png" } },
   background: { service_worker: "background.js", type: "module" },
   content_scripts: [{ matches: pages, js: ["content.js"], run_at: "document_idle" }],
-  permissions: ["storage"],
-  host_permissions: [...pages, "https://api.anthropic.com/*"],
+  permissions: ["storage", "declarativeNetRequest"],
+  // Ollama listens on localhost; any port, since people change it.
+  host_permissions: [...pages, "https://api.anthropic.com/*", "http://localhost/*", "http://127.0.0.1/*"],
   content_security_policy: { extension_pages: "script-src 'self'; object-src 'self'" },
 };
 writeFileSync("dist/manifest.json", JSON.stringify(manifest, null, 2));
