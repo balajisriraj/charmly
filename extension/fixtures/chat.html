@@ -101,6 +101,21 @@
         open,
         dark: (on) => document.body.classList.toggle("dark", on),
         draft: () => document.querySelector("[contenteditable]").textContent,
+        // Load any conversation (used by the promo recorder): the sidebar shows it first and selected.
+        load(name, messages, preview = "") {
+          CHATS[name] = messages;
+          if (!document.querySelector(`.chat[data-chat="${name}"]`)) {
+            const item = document.createElement("div");
+            item.className = "chat";
+            item.dataset.chat = name;
+            item.innerHTML = `<span class="avatar"></span><div><b></b><small></small></div>`;
+            item.querySelector("b").textContent = name;
+            item.querySelector("small").textContent = preview;
+            item.addEventListener("click", () => open(name));
+            document.querySelector("#side h2").after(item);
+          }
+          open(name);
+        },
       };
       open("Ananya");
     </script>

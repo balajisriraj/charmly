@@ -1,0 +1,198 @@
+{
+  "model": "llama3.2:3b",
+  "goal": "ask her out for a date night",
+  "maya": {
+    "history": [
+      [
+        "in",
+        "hey! it's Maya, from Arun's party 👋"
+      ],
+      [
+        "out",
+        "Maya! hey, so glad you texted"
+      ]
+    ],
+    "room": "that was the most fun I've had in ages 😄 your karaoke though…",
+    "next": "anyway, what are you up to this week?",
+    "replies": [
+      "same old work chaos 😮‍💨 but I found the cutest little Italian place near my office",
+      "honestly I could use a proper night off, this week's been a lot",
+      "hmm, depends… are you asking? 😏",
+      "yes!! friday? 🥰"
+    ]
+  },
+  "priya": {
+    "history": [
+      [
+        "in",
+        "hey! it was so fun meeting you at Arun's party 😊"
+      ],
+      [
+        "out",
+        "haha same, your karaoke was legendary"
+      ],
+      [
+        "in",
+        "omg don't remind me 🙈 what are you up to this week?"
+      ]
+    ]
+  },
+  "room": {
+    "vibe": "relaxed · sharing",
+    "cards": [
+      {
+        "tone": "warm",
+        "text": "That's so true! I was so worried I'd be the only one out of tune 😂",
+        "why": ""
+      },
+      {
+        "tone": "flirty",
+        "text": "I'm glad I could help bring the noise (and the laughs) to the stage",
+        "why": ""
+      },
+      {
+        "tone": "playful",
+        "text": "Karaoke karastrophe: I'm pretty sure I just gave you a permanent sound signature 🎤",
+        "why": ""
+      }
+    ],
+    "pick": 0
+  },
+  "next": {
+    "vibe": "curious · asking you something",
+    "cards": [
+      {
+        "tone": "warm",
+        "text": "Hey, I've got a bunch of work stuff this week, but I'm looking forward to the weekend 🤞",
+        "why": ""
+      },
+      {
+        "tone": "flirty",
+        "text": "Still getting over the karaoke performance, need you to help me recover 😜",
+        "why": ""
+      },
+      {
+        "tone": "playful",
+        "text": "Still finding song lyrics in my head, think we need to have a sing-off soon 🎤",
+        "why": ""
+      }
+    ]
+  },
+  "steps": [
+    {
+      "vibe": "curious · asking you something",
+      "cards": [
+        {
+          "tone": "warm",
+          "text": "How's your week going so far? Any fun plans?",
+          "why": "asks about their week"
+        },
+        {
+          "tone": "flirty",
+          "text": "Just got done with a show that I'm still buzzing from - how's your evening?",
+          "why": "teases their interest in something"
+        },
+        {
+          "tone": "playful",
+          "text": "What's the worst karaoke performance you've ever seen? Mine was in college...",
+          "why": "keeps the light and fun vibe"
+        }
+      ],
+      "pick": 0,
+      "strip": "step 1 of 4 · find common ground, not saying it yet",
+      "reply": "same old work chaos 😮‍💨 but I found the cutest little Italian place near my office"
+    },
+    {
+      "vibe": "relaxed · sharing",
+      "cards": [
+        {
+          "tone": "playful",
+          "text": "OH, that sounds adorable! What made you discover that place? Are they serving any good pasta?",
+          "why": ""
+        }
+      ],
+      "pick": 0,
+      "strip": "step 2 of 4 · bridge to the topic, not saying it yet",
+      "reply": "honestly I could use a proper night off, this week's been a lot"
+    },
+    {
+      "vibe": "relaxed · sharing",
+      "cards": [
+        {
+          "tone": "warm",
+          "text": "oh no, a night off sounds like just what you need",
+          "why": ""
+        },
+        {
+          "tone": "warm",
+          "text": "do you think you'd be up for trying something new with a friend?",
+          "why": "matches their energy"
+        },
+        {
+          "tone": "flirty",
+          "text": "you deserve a proper night off, and maybe some company too 😉",
+          "why": "keeps it light"
+        }
+      ],
+      "pick": 0,
+      "strip": "they brought it up themselves",
+      "reply": "hmm, depends… are you asking? 😏"
+    },
+    {
+      "vibe": "curious · asking you something",
+      "cards": [
+        {
+          "tone": "playful",
+          "text": "Aww, you deserve it! I'd love to take you out and help you unwind. Are you free this weekend?",
+          "why": ""
+        }
+      ],
+      "pick": 0,
+      "strip": "step 4 of 4 · say it",
+      "reply": "yes!! friday? 🥰"
+    }
+  ],
+  "after": {
+    "vibe": "excited · asking you something",
+    "cards": [
+      {
+        "tone": "warm",
+        "text": "Awesome, Friday sounds perfect! Do you need me to pick up dinner or are you good?",
+        "why": "ask for plans"
+      },
+      {
+        "tone": "flirty",
+        "text": "I was thinking we could grab drinks and dance the night away 😏, what do you say?",
+        "why": "ask for plans"
+      },
+      {
+        "tone": "playful",
+        "text": "Sounds like a plan, but only if you promise to sing off-key and laugh with me 😂",
+        "why": "ask for plans"
+      }
+    ],
+    "pick": 0
+  },
+  "anywhere": {
+    "vibe": "excited · asking you something",
+    "cards": [
+      {
+        "tone": "warm",
+        "text": "Everything's going well, just got a bunch of work done! Need to relax now",
+        "why": "gets the vibe"
+      },
+      {
+        "tone": "flirty",
+        "text": "Still getting over your epic mic skills 😂, want to help me relive that magic?",
+        "why": "builds on the fun"
+      },
+      {
+        "tone": "playful",
+        "text": "Relaxing, just rewatching all the embarrassing karaoke vids 🤣, you're stuck in my head now",
+        "why": "keeps the lighthearted tone"
+      }
+    ],
+    "pick": 0
+  },
+  "capturedAt": "2026-11-03T19:31:54.179Z"
+}

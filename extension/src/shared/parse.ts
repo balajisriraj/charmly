@@ -44,7 +44,8 @@ export class LineParser {
     const text = raw.replace(/^(me|you)\s*:\s*/i, "").trim();
     if (!/[\p{L}\p{N}]/u.test(text.replace(/\[[^\]]*\]/g, "")) && text.length < 3) return;
     if (/^[([{]?\s*(warm|playful|flirty|direct|tone|reply)\s*[)\]}]?\.?$/i.test(text)) return;
-    this.onSuggestion({ n: ++this.count, tone: tone.toLowerCase(), text, why });
+    // A why that's only "yes"/"no" (a model echoing the vibe's boundary field) says nothing.
+    this.onSuggestion({ n: ++this.count, tone: tone.toLowerCase(), text, why: /^(yes|no|none)\.?$/i.test(why.trim()) ? "" : why });
   }
 
   private line(raw: string) {
@@ -105,4 +106,15 @@ export class LineParser {
     const [mood = "", intent = "", language = "", boundary = "no"] = parts;
     this.onVibe({ mood, intent, language: language || "English", boundary: /^(yes|true)$/i.test(boundary) });
   }
+}
+
+/** If a small model ignores the format entirely, salvage its plain lines as suggestions rather than show nothing. */
+export function salvage(raw: string): Suggestion[] {
+  return raw
+    .split("\n")
+    .map((l) => l.replace(/^\s*(?:[-*]|\d+[.)]|option \d+:?)\s*/i, "").replace(/^["“]|["”]$/g, "").trim())
+    // Skip anything still shaped like the format ("1|VIBE|…", "GOAL|…"): those are records, not replies.
+    .filter((l) => l && !l.includes("|") && !/^(vibe|goal)\b/i.test(l) && !/^(here are|sure|okay,? here)/i.test(l) && l.length < 300)
+    .slice(0, 3)
+    .map((text, i) => ({ n: i + 1, tone: ["warm", "playful", "direct"][i], text, why: "" }));
 }

@@ -30,6 +30,16 @@ export function check(s: Suggestion, vibe: Vibe | null, allowFlirty: boolean, bl
     .replace(/\s*[\u2014\u2013]\s*/g, " - ") // house style: plain hyphens, never em or en dashes
     .replace(/^["“](.*)["”]$/, "$1")
     .trim();
+  // Small models sometimes quote the chat back ("Them: …") or label their own line ("Me: …").
+  if (/^them\s*:/i.test(text)) return { ok: false, text, reason: "quotes the chat" };
+  text = text.replace(/^(me|you)\s*:\s*/i, "").trim();
+  // Format labels that leak into the reply: "**Option 2**", "Flirty: …".
+  text = text
+    .replace(/^\*+|\*+$/g, "")
+    .replace(/^(option\s*\d+\s*[:.)-]?\s*)?((warm|playful|flirty|direct)\s*[:)-]\s*)?/i, "")
+    .replace(/^\*+|\*+$/g, "")
+    .trim();
+  if (/^(option\s*\d+\s*)?(warm|playful|flirty|direct)?\.?$/i.test(text)) return { ok: false, text, reason: "a label, not a reply" };
   if (!text) return { ok: false, text, reason: "empty" };
   if (text.length > 400) return { ok: false, text, reason: "too long for a text" };
   if (NEVER.some((r) => r.test(text))) return { ok: false, text, reason: "pressuring" };

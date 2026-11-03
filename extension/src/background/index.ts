@@ -5,7 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { demo, quickVibe } from "../shared/demo";
 import { makesAsk, quickRead, stepOf } from "../shared/goal";
 import { listModels, OllamaError, streamChat } from "../shared/ollama";
-import { LineParser } from "../shared/parse";
+import { LineParser, salvage } from "../shared/parse";
 import { buildPrompt, LOCAL_SYSTEM, SYSTEM } from "../shared/prompt";
 import { check } from "../shared/safety";
 import { normalise, normalisePresets, type Preset, type Settings, type StreamEvent, type StyleProfile, type Suggestion, type SuggestRequest, type Vibe } from "../shared/types";
@@ -26,16 +26,6 @@ function claude(apiKey: string) {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** If a small model ignores the format entirely, salvage its plain lines as suggestions rather than show nothing. */
-export function salvage(raw: string): Suggestion[] {
-  return raw
-    .split("\n")
-    .map((l) => l.replace(/^\s*(?:[-*]|\d+[.)]|option \d+:?)\s*/i, "").replace(/^["“]|["”]$/g, "").trim())
-    .filter((l) => l && !/^vibe\b/i.test(l) && !/^(here are|sure|okay,? here)/i.test(l) && l.length < 300)
-    .slice(0, 3)
-    .map((text, i) => ({ n: i + 1, tone: ["warm", "playful", "direct"][i], text, why: "" }));
-}
 
 async function run(req: SuggestRequest, post: (e: StreamEvent) => void, signal: AbortSignal) {
   const started = performance.now();

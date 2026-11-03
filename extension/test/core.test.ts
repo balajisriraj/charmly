@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { demo } from "../src/shared/demo";
 import { again, makesAsk, newGoal, normaliseGoal, onMessage, PLANS, quickRead, sayNow, skip, stepOf, topicWords } from "../src/shared/goal";
-import { LineParser } from "../src/shared/parse";
+import { LineParser, salvage } from "../src/shared/parse";
 import { buildPrompt, lineup } from "../src/shared/prompt";
 import { check } from "../src/shared/safety";
 import { describe as describeStyle, profile } from "../src/shared/style";
@@ -30,6 +30,13 @@ describe("stream parser", () => {
 describe("safety filter", () => {
   it("keeps kind replies and normalises dashes", () => {
     expect(check(s("sounds fun \u2014 count me in"), calm, false)).toEqual({ ok: true, text: "sounds fun - count me in" });
+  });
+  it("strips a 'Me:' label and drops the chat quoted back, whichever path a line took", () => {
+    expect(check(s("Me: would you be up for dinner?"), calm, true)).toEqual({ ok: true, text: "would you be up for dinner?" });
+    expect(check(s("Them: 😊"), calm, true).ok).toBe(false);
+    expect(check(s("*Option 2 Flirty**"), calm, true).ok).toBe(false);
+    expect(check(s("Flirty: how about dinner and a show?"), calm, true).text).toBe("how about dinner and a show?");
+    expect(check(s("**Option 1:** sounds perfect, see you then"), calm, true).text).toBe("sounds perfect, see you then");
   });
   it("leaves banter alone, but drops pressure, invented contacts and out-of-character text", () => {
     expect(check(s("don't be stupid da 😂"), calm, true).ok).toBe(true);
@@ -256,6 +263,9 @@ describe("filter and parser edge cases", () => {
 });
 
 describe("junk lines", () => {
+  it("salvages plain lines but never a format record", () => {
+    expect(salvage("1|VIBE|excited|How does Friday work for you?|Yes\nfriday works, can't wait 🥳").map((x) => x.text)).toEqual(["friday works, can't wait 🥳"]);
+  });
   it("drops a bare tone label and the chat quoted back, keeps real replies", () => {
     const out: Suggestion[] = [];
     const p = new LineParser(() => {}, (x) => out.push(x));
