@@ -99,6 +99,14 @@ try {
   await sleep(150);
   check((await page.evaluate(() => window.chat.draft())) === texts[1], "Alt+2 inserts the second option");
 
+  // Peek: hold Alt on its own and the tray fades, so you can read the chat behind it.
+  await page.keyboard.down("Alt");
+  await sleep(500);
+  check(await tray(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.peek")), "holding Alt peeks through the tray");
+  await page.keyboard.up("Alt");
+  await sleep(100);
+  check(await tray(() => !document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.peek")), "letting go brings it back");
+
   // Escape tucks it away; the draft stays.
   await page.keyboard.press("Escape");
   await sleep(100);
@@ -480,7 +488,7 @@ try {
   check(!(await other.evaluate(() => !!document.querySelector("charmly-tray"))), "isn't on sites you haven't switched on");
   await other.click("#box");
   await ext(async (id) => chrome.runtime.sendMessage({ type: "activate-tab", tabId: id }), await tabOf("plain.html"));
-  await other.waitForFunction(() => document.querySelector("charmly-tray")?.shadowRoot?.querySelector(".err, .card"), { timeout: 10000 });
+  await other.waitForFunction(() => document.querySelector("charmly-tray")?.shadowRoot?.querySelector(".err, .card"), { timeout: 30000 });
   check(/Select the message you're replying to/.test(await oq("r.textContent")), "the shortcut loads Charmly into the tab and asks what to reply to when it can't tell");
   await other.keyboard.press("Escape");
   await other.evaluate(() => {

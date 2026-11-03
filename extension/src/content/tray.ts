@@ -151,6 +151,11 @@ export class Tray {
     this.render(true);
   }
 
+  /** Peek through the tray at the chat behind it. */
+  peek(on: boolean) {
+    this.panel.classList.toggle("peek", on);
+  }
+
   markInserted(i: number) {
     this.inserted = i;
     this.render();
@@ -368,7 +373,7 @@ export class Tray {
           <div class="foot"><div class="tones" role="group" aria-label="Lead with">${tones}</div><span class="spacer"></span>${held}${polish}</div>`;
       }
     }
-    const keep = ["dark", "enter"].filter((c) => this.panel.classList.contains(c));
+    const keep = ["dark", "enter", "peek"].filter((c) => this.panel.classList.contains(c));
     this.panel.className = ["tray", s.kind, this.sheet ? "with-sheet" : "", ...keep].filter(Boolean).join(" ");
     this.panel.innerHTML = body;
     this.shown = s.kind === "loading" || s.kind === "ready" ? s.suggestions.length : 0;

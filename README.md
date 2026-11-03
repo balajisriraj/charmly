@@ -14,11 +14,11 @@ Charmly is a Chrome extension for WhatsApp Web, and for any other messaging site
 - **Tones on tap.** Warm, Playful, Direct, and Flirty (opt-in) chips change which kind of reply leads. Charmly names the three tones to write, in order, so the one you tap always comes first, and in flirt mode a flirty option stays in the mix.
 - **Steer toward what you want to say.** Some things are better reached than blurted: asking someone out, asking for money back, telling a friend you're moving. Set a goal and a pace (3, 4 or 5 exchanges), and Charmly drives the chat there slowly: one step per back-and-forth, and it only says it on the last step. [More below](#steer).
 - **Polish my draft.** Start typing your own reply, whether the tray is tucked away or showing suggestions, and Charmly offers to polish it in your voice.
-- **Keyboard first.** `Alt+1/2/3` inserts a suggestion, `Alt+R` regenerates, `Alt+P` polishes your draft, `Esc` tucks the tray away.
+- **Keyboard first.** `Alt+1/2/3` inserts a suggestion, `Alt+R` regenerates, `Alt+P` polishes your draft, `Esc` tucks the tray away. Hold `Alt` on its own to peek: the tray fades away so you can read the chat behind it.
 - **One chip for everything about a chat.** The tray has one line of context: the vibe, plus a chip summing up this chat's setup ("😎 Friends · 💻 llama3.2:3b"). The chip opens a single sheet with the voice preset, the goal, a note and the engine. A thin goal strip shows only while you're steering.
 - **Voice presets.** Tell Charmly who you are and how you talk in each kind of chat: what to always do, what never to do, and words it must never use. Four editable starters ship (😎 Friends, 💼 Work, 🏡 Family, 💫 Dating), and you can add your own. Switch presets from the tray's sheet, which also holds a note for the chat ("my manager: keep it brief"). Charmly remembers both per chat.
 - **Three engines, switchable in the chat.** The sheet lists your installed local models, plus Claude and Demo. **On-device** runs a small model on your laptop through [Ollama](https://ollama.com), so your chats never leave the machine. **Claude** gives the best quality with your Anthropic key. **Demo** lets you try the experience with built-in samples.
-- **Native feel.** A glass tray docked above the message box that follows WhatsApp's light or dark theme, measured from the page itself rather than the system setting.
+- **Clear glass, not a wall.** The tray is see-through glass: a 1px blur, a thin tint and a highlight edge, so the messages behind it stay readable. It firms up a little while your pointer is over it. It follows the page's light or dark theme, measured from the page itself rather than the system setting.
 
 <p align="center"><img src="docs/suggestions-dark.jpg" width="68%" alt="Dark theme" /> &nbsp; <img src="docs/popup.png" width="24%" alt="The popup: switches, tone, API key, demo mode, your voice" /></p>
 
@@ -172,6 +172,8 @@ pnpm e2e                      # the real extension in Chrome, on a local chat pa
   ✓ nothing is sent automatically
   ✓ confirms the insert and hands control back
   ✓ Alt+2 inserts the second option
+  ✓ holding Alt peeks through the tray
+  ✓ letting go brings it back
   ✓ Escape tucks the tray away
   ✓ offers to polish the draft you have
   ✓ notices they may want space

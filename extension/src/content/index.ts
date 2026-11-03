@@ -309,10 +309,25 @@ function start() {
     });
   }
 
+  // Peek: hold Alt on its own (no other key) and the tray fades so you can read the chat behind it.
+  let peekTimer: number | undefined;
+  const endPeek = () => {
+    clearTimeout(peekTimer);
+    peekTimer = undefined;
+    tray.peek(false);
+  };
+  document.addEventListener("keyup", (e) => e.key === "Alt" && endPeek(), true);
+  window.addEventListener("blur", endPeek);
+
   document.addEventListener(
     "keydown",
     (e) => {
       if (!settings.enabled) return;
+      if (e.key === "Alt") {
+        if (tray.open && !e.repeat && peekTimer === undefined) peekTimer = window.setTimeout(() => tray.peek(true), 350);
+        return;
+      }
+      if (peekTimer !== undefined) endPeek();
       if (e.key === "Escape" && tray.open) {
         pill();
         return;

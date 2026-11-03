@@ -37,8 +37,13 @@ export class LineParser {
     return this.count;
   }
 
-  private emit(tone: string, text: string, why: string) {
+  private emit(tone: string, raw: string, why: string) {
     if (this.count >= this.max) return;
+    // Small models sometimes quote the chat back ("Them: 😊"), label a line as "Me: …", or write only the tone.
+    if (/^them\s*:/i.test(raw)) return;
+    const text = raw.replace(/^(me|you)\s*:\s*/i, "").trim();
+    if (!/[\p{L}\p{N}]/u.test(text.replace(/\[[^\]]*\]/g, "")) && text.length < 3) return;
+    if (/^[([{]?\s*(warm|playful|flirty|direct|tone|reply)\s*[)\]}]?\.?$/i.test(text)) return;
     this.onSuggestion({ n: ++this.count, tone: tone.toLowerCase(), text, why });
   }
 

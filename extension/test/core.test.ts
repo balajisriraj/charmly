@@ -255,6 +255,16 @@ describe("filter and parser edge cases", () => {
   });
 });
 
+describe("junk lines", () => {
+  it("drops a bare tone label and the chat quoted back, keeps real replies", () => {
+    const out: Suggestion[] = [];
+    const p = new LineParser(() => {}, (x) => out.push(x));
+    p.push("1|warm|(Flirty)|why\n2|direct|Them: 😊|why\n3|playful|Me: anything sounds good with you 😏|fun\n");
+    p.end();
+    expect(out.map((x) => x.text)).toEqual(["anything sounds good with you 😏"]);
+  });
+});
+
 describe("extra fields", () => {
   it("keeps a small model's extra label out of the reply", () => {
     const out: Suggestion[] = [];

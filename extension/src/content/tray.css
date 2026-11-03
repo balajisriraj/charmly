@@ -1,20 +1,31 @@
-/* Charmly's tray: warm glass with a coral → pink → violet accent. Follows WhatsApp's light and dark themes. */
+/*
+ * Charmly's tray: clear glass with a coral → pink → violet accent. Follows the page's light or dark theme.
+ * The glass is deliberately see-through (a light blur, a thin tint and a highlight edge), so the chat behind
+ * stays readable; it firms up a little while the pointer is over it, for reading the cards.
+ */
 :host { all: initial; }
 * { box-sizing: border-box; margin: 0; padding: 0; font: inherit; }
 .tray {
-  --glass: rgba(255, 255, 255, .78); --edge: rgba(255, 255, 255, .7); --ink: #1d1b24; --ink-2: #5f5a6e; --ink-3: #9a94aa;
-  --card: rgba(255, 255, 255, .86); --line: rgba(29, 27, 36, .08);
+  --glass: rgba(255, 255, 255, .26); --edge: rgba(255, 255, 255, .65); --ink: #15131c; --ink-2: #4a4558; --ink-3: #6f6a80;
+  --card: rgba(255, 255, 255, .46); --line: rgba(29, 27, 36, .1); --lift: 0 1px 1px rgba(255, 255, 255, .55);
   --grad: linear-gradient(135deg, #ff8a65 0%, #ff5fa2 48%, #8b5cf6 100%);
   position: fixed; display: block; font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color: var(--ink); -webkit-font-smoothing: antialiased; letter-spacing: -.005em;
-  background: var(--glass); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 45%), var(--glass);
+  backdrop-filter: blur(1px) saturate(160%); -webkit-backdrop-filter: blur(1px) saturate(160%);
   border: 1px solid var(--edge); border-radius: 20px; padding: 12px;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .6) inset, 0 18px 50px -18px rgba(76, 29, 149, .35), 0 4px 14px -6px rgba(0, 0, 0, .18);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .5) inset, 0 0 0 .5px rgba(255, 255, 255, .15) inset, 0 18px 40px -22px rgba(76, 29, 149, .4);
+  text-shadow: var(--lift);
+  transition: background-color .25s, backdrop-filter .25s, opacity .18s;
 }
+/* Peek: hold Alt on its own and the tray fades away, so you can read the chat behind it. */
+.tray.peek { opacity: .06; pointer-events: none; }
+.tray:hover { --glass: rgba(255, 255, 255, .42); --card: rgba(255, 255, 255, .58); backdrop-filter: blur(6px) saturate(180%); -webkit-backdrop-filter: blur(6px) saturate(180%); }
+.tray.dark:hover { --glass: rgba(18, 18, 26, .5); --card: rgba(40, 39, 52, .52); }
 .tray.enter { animation: rise .28s cubic-bezier(.2, .9, .25, 1); }
 .tray.dark {
-  --glass: rgba(24, 24, 32, .78); --edge: rgba(255, 255, 255, .1); --ink: #f2f0f7; --ink-2: #b7b1c6; --ink-3: #847e95;
-  --card: rgba(40, 39, 52, .9); --line: rgba(255, 255, 255, .08);
+  --glass: rgba(18, 18, 26, .26); --edge: rgba(255, 255, 255, .16); --ink: #fff; --ink-2: #ddd8ea; --ink-3: #b3adc4;
+  --card: rgba(40, 39, 52, .42); --line: rgba(255, 255, 255, .12); --lift: 0 1px 2px rgba(0, 0, 0, .55);
 }
 .tray.pill:not(.with-sheet) { width: auto !important; padding: 6px 8px 6px 12px; border-radius: 999px; }
 button { cursor: pointer; border: 0; background: none; color: inherit; }
@@ -96,8 +107,9 @@ code { font: 11.5px ui-monospace, "SF Mono", Menlo, monospace; }
 .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .card {
   position: relative; display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 11px 12px 10px; border-radius: 14px;
-  background: var(--card); border: 1px solid var(--line); min-height: 96px;
-  transition: transform .15s, box-shadow .15s, border-color .15s;
+  background: var(--card); border: 1px solid var(--line); min-height: 78px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset;
+  transition: transform .15s, box-shadow .15s, border-color .15s, background-color .25s;
 }
 .card.new, .card.skeleton { animation: rise .3s cubic-bezier(.2, .9, .25, 1) both; }
 button.card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -14px rgba(139, 92, 246, .55); border-color: #ff5fa255; }
