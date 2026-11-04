@@ -372,8 +372,10 @@ function renderTray(app: "wa" | "ms", t: number) {
     a.y += e.offsetTop;
   }
   const panel = inner.panel;
+  // Docked like the product: at the right end of the message box.
+  const open = key.mode !== "pill";
   const width = Math.min(a.w - 24, 820);
-  Object.assign(panel.style, { left: `${a.x + 14}px`, width: `${width}px`, bottom: `${H - a.y + 12}px`, top: "" });
+  Object.assign(panel.style, { left: "", right: `${W - (a.x + a.w) + 12}px`, width: open ? `${width}px` : "", bottom: `${H - a.y + 12}px`, top: "" });
   panel.classList.toggle("dark", false);
   // Motion the tray's CSS would have done: the panel rising in, each card arriving.
   let alpha = 1;

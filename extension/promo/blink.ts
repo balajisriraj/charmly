@@ -170,7 +170,11 @@ function renderTray(app: "wa" | "ms", v: View, u: number) {
     x += e.offsetLeft;
     y += e.offsetTop;
   }
-  Object.assign(i.panel.style, { left: `${x + 14}px`, width: `${Math.min(anchor.offsetWidth - 24, 820)}px`, bottom: `${H - y + 12}px`, top: "", transform: "" });
+  // Docked like the product: at the right end of the message box; the resting dot breathes.
+  const open = t.kind !== "pill" || !!t.sheet;
+  Object.assign(i.panel.style, { left: "", right: `${W - (x + anchor.offsetWidth) + 12}px`, width: open ? `${Math.min(anchor.offsetWidth - 24, 820)}px` : "", bottom: `${H - y + 12}px`, top: "", transform: "" });
+  const dot = tr.host.shadowRoot!.querySelector<HTMLElement>(".dot");
+  if (dot) dot.style.transform = `scale(${1 + 0.07 * (0.5 - 0.5 * Math.cos((u / 2.8) * 2 * Math.PI))})`;
   i.panel.classList.toggle("dark", !!v.dark);
   i.panel.classList.toggle("firm", !t.glass);
   let alpha = 1;
@@ -218,7 +222,7 @@ word(1, big("It reads", "m"), "white");
 word(1, big(grad("the vibe."), "m"), "white");
 ui(2, { tray: { kind: "ready", take: S.room }, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [2.7, "tray:.vibe", 2.35, "tray:.vibe"] });
 word(1, big("Three replies.", "m"), "black");
-ui(3, { tray: { kind: "stream", take: S.room }, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [1.75, "tray:.cards", 1.5, "tray:.cards"] });
+ui(3, { tray: { kind: "stream", take: S.room }, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [1.3, "tray:.cards", 1.18, "tray:.cards"] });
 // Tones.
 word(1, big("Warm."), "warm");
 word(1, big("Playful."), "playful");
@@ -233,7 +237,7 @@ for (const k of ["1", "2", "3", "R"]) word(0.5, keys("⌥", k), "white");
 // Polish.
 word(2, big("Polish my draft.", "s"), "grad", { hit: true });
 const polish = S.extras.takes.polish;
-ui(3, { tray: { kind: "stream", take: polish, polishing: true, preset: "friends" }, composer: S.extras.polish.draft, chat: { name: "Arun", lines: S.extras.polish.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [1.65, "tray:.cards", 1.45, "tray:.cards"] });
+ui(3, { tray: { kind: "stream", take: polish, polishing: true, preset: "friends" }, composer: S.extras.polish.draft, chat: { name: "Arun", lines: S.extras.polish.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [1.3, "tray:.cards", 1.18, "tray:.cards"] });
 // Voice presets, rules, notes, style.
 word(1, big("Your voice.", "m"), "white");
 ui(2, { tray: { kind: "pill", sheet: { typed: () => "" } }, cam: [2.4, "tray:.s-voice", 2.1, "tray:.s-voice"] });
@@ -241,7 +245,7 @@ word(0.5, big("Friends."), "black");
 word(0.5, big("Work."), "white");
 word(0.5, big("Family."), "black");
 word(0.5, big("Dating."), "white");
-ui(2.5, { tray: { kind: "stream", take: S.extras.takes.work, preset: "work" }, chat: { name: "Priya (Manager)", lines: S.extras.work.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [1.6, "tray:.cards", 1.42, "tray:.cards"] });
+ui(2.5, { tray: { kind: "stream", take: S.extras.takes.work, preset: "work" }, chat: { name: "Priya (Manager)", lines: S.extras.work.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [1.3, "tray:.cards", 1.18, "tray:.cards"] });
 word(1, big("Always."), "black");
 word(1, big("Never."), "white");
 word(2, big(`Words it ${grad("never")} uses.`, "s"), "black");
@@ -252,7 +256,7 @@ word(0.5, big("😂", "m"), "white");
 word(1, big("short & sweet.", "m"), "white");
 // Space.
 word(2, big("Knows when to back off.", "s"), "black");
-ui(2.5, { tray: { kind: "stream", take: S.extras.takes.space, preset: "friends" }, chat: { name: "Sam", lines: S.extras.space.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [2.2, "tray:.vibe", 1.5, "tray:.cards"] });
+ui(2.5, { tray: { kind: "stream", take: S.extras.takes.space, preset: "friends" }, chat: { name: "Sam", lines: S.extras.space.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [2.2, "tray:.vibe", 1.2, "tray:.cards"] });
 word(2, big("No pressure. Ever.", "s"), "white");
 // Steer: a hush, then the drop.
 word(1.5, big("And for the messages", "s"), "black", { mark: "steerIntro" });
@@ -265,7 +269,7 @@ word(0.5, big("Natural."), "black");
 word(1, big("Slow."), "white");
 for (const [i, step] of S.steps.entries()) {
   word(1, big(`Step ${i + 1}.`), i % 2 ? "white" : "black");
-  ui(i === 3 ? 2 : 1.5, { tray: { kind: "stream", take: step, goal: i === 3 ? sayNow(newGoal(S.goal, 4)) : steps(i) }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[i]) }, cam: [1.7, "tray:.goal", 1.45, "tray:.cards"] });
+  ui(i === 3 ? 2 : 1.5, { tray: { kind: "stream", take: step, goal: i === 3 ? sayNow(newGoal(S.goal, 4)) : steps(i) }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[i]) }, cam: [1.45, "tray:.goal", 1.2, "tray:.cards"] });
 }
 ui(2, { tray: { kind: "pill", goal: { ...sayNow(newGoal(S.goal, 4)), awaiting: true, said: true } }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[3] + 1) }, cam: [1.9, "page:#wa .list .row:last-child .bubble", 1.65, "page:#wa .list .row:last-child .bubble"] });
 ui(2, { tray: { kind: "pill", goal: { ...sayNow(newGoal(S.goal, 4)), awaiting: true, said: true } }, chat: { name: "Maya", lines: maya }, cam: [2.6, "page:#wa .list .row:last-child .bubble", 2.3, "page:#wa .list .row:last-child .bubble"] }, { hit: true });
@@ -282,17 +286,20 @@ word(2, big("Anywhere."), "grad", { hit: true });
 for (const [i, name] of ["WhatsApp", "Telegram", "Messenger", "Instagram", "LinkedIn", "Slack", "Discord"].entries()) word(0.5, big(name, "m"), i % 2 ? "white" : "black");
 word(1, big("Any site.", "m"), "grad");
 word(2, keys("⌥", "⇧", "C"), "white");
-ui(2.5, { app: "ms", tray: { kind: "stream", take: S.anywhere, preset: "" }, cam: [1.6, "tray:.cards", 1.4, "tray:.cards"] });
+ui(2.5, { app: "ms", tray: { kind: "stream", take: S.anywhere, preset: "" }, cam: [1.3, "tray:.cards", 1.18, "tray:.cards"] });
 word(2, big("Reply to anything you select.", "s"), "black");
 // Glass, peek, light and dark.
+word(1.5, big("Out of your way.", "m"), "black");
+ui(2.5, { tray: { kind: "pill", goal: steps(2) }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[2]) }, cam: [1.25, { x: 1300, y: 760 }, 1.9, "tray:.dot"] });
+word(1.5, big("Drag it anywhere.", "m"), "white");
 word(1, big("Clear glass.", "m"), "white");
 ui(2, { tray: { kind: "ready", take: S.after, goal: { ...sayNow(newGoal(S.goal, 4)), said: true }, glass: true }, cam: [1.05, { x: 1180, y: 640 }, 1.2, { x: 1180, y: 700 }] });
 word(1.5, big("Hold ⌥ to peek.", "m"), "black");
 ui(2, { tray: { kind: "ready", take: S.after, goal: { ...sayNow(newGoal(S.goal, 4)), said: true }, glass: true, peek: [0.25, 0.8] }, cam: [1.15, { x: 1180, y: 700 }, 1.15, { x: 1180, y: 700 }] });
 word(1, big("Light."), "white");
-ui(1, { tray: { kind: "ready", take: S.room }, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [1.25, "tray:.cards", 1.3, "tray:.cards"] });
+ui(1, { tray: { kind: "ready", take: S.room }, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [1.3, "tray:.cards", 1.18, "tray:.cards"] });
 word(1, big("Dark."), "black");
-ui(1, { dark: true, tray: { kind: "ready", take: S.room }, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [1.25, "tray:.cards", 1.3, "tray:.cards"] });
+ui(1, { dark: true, tray: { kind: "ready", take: S.room }, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [1.3, "tray:.cards", 1.18, "tray:.cards"] });
 // Never sends; outro.
 word(2, big("Never sends a thing.", "s"), "white");
 word(2, big(grad("You do.")), "black", { hit: true });
@@ -331,7 +338,8 @@ function renderType(s: Shot, u: number, dur: number) {
   const scale = 1.1 - 0.1 * snap + 0.035 * push;
   typeLayer.querySelectorAll<HTMLElement>(":scope > *").forEach((el, k) => {
     const delay = k * 0.07;
-    const p = out(clamp((u - delay) / 0.16));
+    // On the beat the type is already there (no blank frame), then it settles in.
+    const p = 0.45 + 0.55 * out(clamp((u - delay) / 0.14));
     el.style.opacity = String(p);
     el.style.transform = `scale(${scale}) translateY(${(1 - p) * 20}px)`;
   });

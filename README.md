@@ -4,8 +4,8 @@
 
 Charmly is a Chrome extension for WhatsApp Web, and for any other messaging site in Chrome through one shortcut. When a new message arrives in the chat you have open, it reads the conversation, gets the vibe, and suggests three replies that sound like *you*: warm, playful, direct, or flirty if you've opted in. Tap one and it goes into your message box. You edit it or press Enter yourself. **Charmly never sends anything.**
 
-<p align="center"><a href="docs/charmly-promo.mp4"><img src="docs/promo-poster.jpg" width="92%" alt="Charmly, the film: steering a chat toward a date night" /></a><br />
-<sub><b><a href="docs/charmly-promo.mp4">▶ Watch the film</a></b> (97 seconds, with sound). Every suggestion in it is real output from the on-device model. <a href="#the-film-made-in-code">How it was made</a>.</sub></p>
+<p align="center"><a href="docs/charmly-promo.mp4"><img src="docs/demo-blink.gif" width="92%" alt="Charmly in 30 seconds: the hook, the vibe, three replies, tones, polish, presets" /></a><br />
+<sub><b><a href="docs/charmly-promo.mp4">▶ Watch the film</a></b> (72 seconds, with sound): every feature, cut on the beat. Then <b><a href="docs/charmly-steer-film.mp4">the Steer story</a></b> (97 seconds), a date night in four messages. Every suggestion in both is real output from the on-device model. <a href="#the-films-made-in-code">How they were made</a>.</sub></p>
 
 ![Charmly reads the vibe and suggests three replies, in your voice](docs/demo-suggestions.gif)
 
@@ -108,7 +108,7 @@ A goal is a quiet instruction for one chat, like "ask her out for a date night",
 3. **Test the water.** "oh no, a night off sounds like just what you need"
 4. **Say it.** "I'd love to take you out and help you unwind. Are you free this weekend?"
 
-Then Maya: "yes!! friday? 🥰". The plan is in code, not left to the model:
+Then Maya: "yes!! friday? 🥰". [Watch the whole story](docs/charmly-steer-film.mp4) (97 seconds, with sound). The plan is in code, not left to the model:
 
 | Pace | Steps, one per back-and-forth |
 |---|---|
@@ -255,12 +255,16 @@ pnpm e2e                      # the real extension in Chrome, on a local chat pa
 
 By default the on-device checks run against a stand-in that speaks Ollama's API and answers in a deliberately messy small-model format, so CI covers them. `OLLAMA_E2E=http://localhost:11434 OLLAMA_MODEL=llama3.2:3b pnpm e2e` runs them against a real model, which also passes.
 
-## The film, made in code
+## The films, made in code
 
-The film isn't a screen recording. It's rendered from code, frame by frame, in two passes:
+There are two films:
+- **The promo** ([`promo/blink.ts`](extension/promo/blink.ts)) shows every feature, cut on the beat at 120 bpm: kinetic type, then punch-ins on the real tray.
+- **The Steer story** ([`promo/film.ts`](extension/promo/film.ts)) is a calm walk through a date-night goal.
 
-1. **Capture** ([`promo/capture.mjs`](extension/promo/capture.mjs)) drives the real extension in Chrome with the real on-device model (`llama3.2:3b`), through the real UI: it opens the sheet, sets the goal, inserts the chosen card and presses send. Maya's lines are written for the film. **Every suggestion is real output.** A director picks the take like an editor would: a natural, complete line, no ask before the last step, a real invitation on the last step. A weak take gets regenerated, as you would press ↻. The result is [`promo/script.json`](extension/promo/script.json).
-2. **Render** ([`promo/film.ts`](extension/promo/film.ts), [`render.mjs`](extension/promo/render.mjs)) builds the film from that data. The tray on screen is **Charmly's actual `Tray` component**, bundled into the film page and fed the captured suggestions. A timeline of beats drives everything else, and `renderAt(t)` sets the page to exactly what frame `t` shows:
+Neither is a screen recording. Both are rendered from code, frame by frame, in two passes:
+
+1. **Capture** ([`promo/capture.mjs`](extension/promo/capture.mjs), and [`capture-extras.mjs`](extension/promo/capture-extras.mjs) for the Polish, Work-preset and back-off takes) drives the real extension in Chrome with the real on-device model (`llama3.2:3b`), through the real UI: it opens the sheet, sets the goal, inserts the chosen card and presses send. Maya's lines are written for the film. **Every suggestion is real output.** A director picks the take like an editor would: a natural, complete line, no ask before the last step, a real invitation on the last step. A weak take gets regenerated, as you would press ↻. The result is [`promo/script.json`](extension/promo/script.json).
+2. **Render** ([`render.mjs`](extension/promo/render.mjs)) builds each film from that data. The tray on screen is **Charmly's actual `Tray` component**, bundled into the film page and fed the captured suggestions. A timeline of beats drives everything else, and `renderAt(t)` sets the page to exactly what frame `t` shows:
    - chat messages and typing indicators;
    - camera moves (eased zooms into the tray);
    - a cursor path with click ripples;
@@ -268,7 +272,14 @@ The film isn't a screen recording. It's rendered from code, frame by frame, in t
 
    Puppeteer steps through 2,900 frames at 30 fps, and ffmpeg encodes them. Text stays vector-sharp at any zoom, and motion never drops a frame.
 
-The score ([`promo/music.py`](extension/promo/music.py)) is original, synthesised in plain Python and composed to the film's own markers:
+Both scores are original, synthesised in plain Python and composed to each film's own markers.
+
+The promo's score ([`music_upbeat.py`](extension/promo/music_upbeat.py)) is A major at 120 bpm:
+- four-on-the-floor, with a pumping bass, chord stabs and a pentatonic hook;
+- drops on the reveal and on "Steer.";
+- an impact on every big word.
+
+The Steer story's score ([`music.py`](extension/promo/music.py)) is quieter:
 - warm pads in F major under the hook;
 - a riser and bells on the reveal;
 - a hushed breakdown for "the hardest messages to send";
@@ -282,7 +293,9 @@ Making the film was also a test: the capture surfaced four small-model formattin
 
 ```bash
 node promo/capture.mjs                  # needs Ollama; writes promo/script.json
-node promo/render.mjs                   # → promo/out/charmly-promo.mp4, docs/*.gif
+node promo/capture-extras.mjs           # the extra takes for the promo
+node promo/render.mjs                   # the promo → promo/out/charmly-blink.mp4, docs/charmly-promo.mp4
+node promo/render.mjs --film film       # the Steer story → docs/charmly-steer-film.mp4 and the feature GIFs
 node promo/render.mjs --preview 47      # one frame, for art direction
 node promo/render.mjs --music track.mp3 # bring your own licensed track
 ```
@@ -298,7 +311,7 @@ extension/
   src/options/     the voice-preset editor
   fixtures/        chat.html (WhatsApp-like) · bubbles.html · thread.html · linkedin.html · plain.html
   e2e/run.mjs      end-to-end checks and README screenshots
-  promo/           the film: capture.mjs (real model) · film.ts + film.html (the timeline) · render.mjs · music.py
+  promo/           the films: capture*.mjs (real model) · blink.ts + film.ts (the timelines) · film.html (the set) · render.mjs · music*.py
   build.mjs        esbuild → MV3 bundle; --dev also allows localhost for the test page
 ```
 
