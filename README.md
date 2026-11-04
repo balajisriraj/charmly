@@ -4,11 +4,7 @@
 
 Charmly is a Chrome extension for WhatsApp Web, and for any other messaging site in Chrome through one shortcut. When a new message arrives in the chat you have open, it reads the conversation, gets the vibe, and suggests three replies that sound like *you*: warm, playful, direct, or flirty if you've opted in. Tap one and it goes into your message box. You edit it or press Enter yourself. **Charmly never sends anything.**
 
-
-
 https://github.com/user-attachments/assets/fbba1533-f56f-458e-846b-afa3d8dc851c
-
-
 
 <sub>The film (2½ minutes, with sound): every feature, explained and then shown on the real tray. Every suggestion in it is real output from the on-device model. <a href="#the-film-made-in-code">How it was made</a>.</sub>
 
@@ -282,7 +278,7 @@ Making the film was also a test: the capture surfaced four small-model formattin
 ```bash
 node promo/capture.mjs                  # needs Ollama; writes promo/script.json
 node promo/capture-extras.mjs           # the extra takes for the promo
-node promo/render.mjs                   # the film → promo/out/charmly-promo.mp4, docs/charmly-promo.mp4
+node promo/render.mjs                   # the film → promo/out/charmly-promo.mp4 (1080p) and charmly-promo-web.mp4 (for the README)
 node promo/render.mjs --preview 47      # one frame, for art direction
 node promo/render.mjs --music track.mp3 # bring your own licensed track
 ```

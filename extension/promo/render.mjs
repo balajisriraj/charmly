@@ -3,8 +3,8 @@
 //   node promo/render.mjs [--music track.mp3] [--fps 30] [--preview 12.5]
 //
 // The film (promo/blink.ts) plays on the set with the real tray. Reads promo/script.json (from capture.mjs and
-// capture-extras.mjs). Writes promo/out/charmly-promo.mp4 (1080p) and ../docs/charmly-promo.mp4 (web size, for the
-// README). --preview t saves one frame.
+// capture-extras.mjs). Writes promo/out/charmly-promo.mp4 (1080p) and promo/out/charmly-promo-web.mp4 (web size:
+// upload it to the README on github.com). --preview t saves one frame.
 import { execFileSync, spawn } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -13,7 +13,6 @@ import puppeteer from "puppeteer-core";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const OUT = resolve(ROOT, "promo/out");
-const DOCS = resolve(ROOT, "../docs");
 const arg = (name) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > 0 ? process.argv[i + 1] : undefined;
@@ -68,5 +67,5 @@ const film = resolve(OUT, "charmly-promo.mp4");
 execFileSync("ffmpeg", ["-y", "-v", "error", "-i", silent, "-i", track, "-filter_complex", `[1:a]atrim=0:${duration.toFixed(2)},loudnorm=I=-14:TP=-1.2:LRA=11,afade=t=in:d=0.6,afade=t=out:st=${(duration - 2.4).toFixed(2)}:d=2.4[a]`, "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", film]);
 
 // For the README and the portfolio: a web-sized film.
-execFileSync("ffmpeg", ["-y", "-v", "error", "-i", film, "-vf", "scale=1280:-2:flags=lanczos", "-c:v", "libx264", "-crf", "28", "-preset", "slow", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", resolve(DOCS, "charmly-promo.mp4")]);
+execFileSync("ffmpeg", ["-y", "-v", "error", "-i", film, "-vf", "scale=1280:-2:flags=lanczos", "-c:v", "libx264", "-crf", "28", "-preset", "slow", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", resolve(OUT, "charmly-promo-web.mp4")]);
 console.log(JSON.stringify({ duration: +duration.toFixed(1), marks, scenes }));
