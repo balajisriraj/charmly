@@ -113,6 +113,12 @@ function start() {
     suggest: (tone) => request(tone),
     polish: () => request(tray.tone, site.draft()),
     insert: (text, index) => void put(text, index),
+    moved: (offset) => {
+      // Remember where you put Charmly, per site.
+      void chrome.storage.local.get("trayOffsets").then(({ trayOffsets }) =>
+        chrome.storage.local.set({ trayOffsets: { ...((trayOffsets as Record<string, unknown>) ?? {}), [location.host]: offset } }),
+      );
+    },
     dismiss: () => {
       port?.disconnect();
       port = null;
@@ -376,7 +382,9 @@ function start() {
 
   window.addEventListener("resize", () => tray.place(site.anchor(), site.dark()));
 
-  chrome.storage.local.get(["settings", "presets", "chatPresets", "chatNotes", "chatGoals"]).then(({ settings: saved, presets, chatPresets: cp, chatNotes: cn, chatGoals: cg }) => {
+  chrome.storage.local.get(["settings", "presets", "chatPresets", "chatNotes", "chatGoals", "trayOffsets"]).then(({ settings: saved, presets, chatPresets: cp, chatNotes: cn, chatGoals: cg, trayOffsets }) => {
+    const offset = (trayOffsets as Record<string, { x: number; y: number }> | undefined)?.[location.host];
+    if (offset && Number.isFinite(offset.x) && Number.isFinite(offset.y)) tray.offset = offset;
     chatGoals = readGoals(cg);
     settings = normalise(saved);
     tray.tone = settings.flirty || settings.tone !== "flirty" ? settings.tone : "warm";

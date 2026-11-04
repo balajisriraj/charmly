@@ -55,7 +55,7 @@ S.priya.history.forEach(([dir, text]) => ms.msgs.push({ t: -1, dir: dir as "in" 
 
 // ---- the trays: Charmly's real component, one per app -------------------------------------------------------
 const noop = () => {};
-const handlers = { chooseEngine: noop, loadModels: noop, choosePreset: noop, saveNote: noop, saveGoal: noop, goalAction: noop, editPresets: noop, suggest: noop, polish: noop, insert: noop, dismiss: noop };
+const handlers = { chooseEngine: noop, loadModels: noop, choosePreset: noop, saveNote: noop, saveGoal: noop, goalAction: noop, editPresets: noop, suggest: noop, polish: noop, insert: noop, dismiss: noop, moved: noop };
 function makeTray(app: HTMLElement) {
   const tray = new Tray(handlers);
   app.appendChild(tray.host);

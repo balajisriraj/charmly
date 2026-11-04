@@ -74,6 +74,23 @@
       #keys { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); display: flex; gap: 14px; opacity: 0; }
       #keys span { min-width: 88px; height: 88px; padding: 0 22px; display: grid; place-items: center; border-radius: 20px; font-size: 40px; font-weight: 600; color: #1d1d1f; background: rgba(255, 255, 255, .94); box-shadow: 0 3px 0 #d2d2d7, 0 22px 50px -18px rgba(0, 0, 0, .4); }
       #keys.press span { transform: translateY(3px); box-shadow: 0 0 0 #d2d2d7, 0 12px 26px -16px rgba(0, 0, 0, .4); }
+
+      /* Dark theme for the set (the fast film's "Dark." beat) */
+      #wa.dark { background: #0b141a; color: #e9edef; }
+      #wa.dark .side { background: #111b21; border-color: #222d34; } #wa.dark .search { background: #202c33; } #wa.dark .item.on { background: #2a3942; }
+      #wa.dark .item small, #wa.dark .item time, #wa.dark header small, #wa.dark .meta { color: #8696a0; }
+      #wa.dark .main { background: #0b141a; } #wa.dark header, #wa.dark footer { background: #202c33; border-color: #222d34; }
+      #wa.dark .bubble { background: #202c33; color: #e9edef; } #wa.dark .row.out .bubble { background: #005c4b; }
+      #wa.dark .box { background: #2a3942; color: #e9edef; } #wa.dark .plus { color: #aebac1; }
+
+      /* Kinetic type (the fast film) */
+      #type { position: absolute; inset: 0; display: none; place-content: center; text-align: center; gap: 26px; font-family: -apple-system, "SF Pro Display", BlinkMacSystemFont, sans-serif; }
+      #type .w { font-size: 200px; font-weight: 800; letter-spacing: -.05em; line-height: .98; white-space: nowrap; }
+      #type .w.m { font-size: 150px; } #type .w.s { font-size: 112px; letter-spacing: -.04em; }
+      #type .sub { font-size: 46px; font-weight: 600; letter-spacing: -.015em; opacity: .62; }
+      #type .kc { display: inline-grid; place-items: center; min-width: 230px; height: 230px; margin: 0 14px; padding: 0 40px; border-radius: 48px; font-size: 120px; font-weight: 600; letter-spacing: 0; color: #1d1d1f; background: #fff; box-shadow: 0 8px 0 #d2d2d7, 0 40px 90px -30px rgba(0, 0, 0, .45); }
+      #type .logo { width: 210px; height: 210px; border-radius: 58px; margin: 0 auto; }
+      #type .logo::after { inset: 72px; }
     </style>
   </head>
   <body>
@@ -104,6 +121,7 @@
       <svg id="cursor" viewBox="0 0 26 26"><path d="M4 2 L4 21 L9 16.5 L12.6 24 L16 22.4 L12.4 15 L19 15 Z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" /></svg>
       <div id="ripple"></div>
     </div>
+    <div id="type"></div>
     <div id="overlay"><div id="card"></div><div id="caption"></div><div id="keys"></div></div>
     <script>window.SCRIPT = /*SCRIPT*/;</script>
     <script src="film.js"></script>

@@ -29,6 +29,7 @@ export type TrayHandlers = {
   polish: () => void;
   insert: (text: string, index: number) => void;
   dismiss: () => void;
+  moved: (offset: { x: number; y: number }) => void;
 };
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -60,6 +61,12 @@ export class Tray {
   typing = false; // the person is writing their own reply while suggestions are open
   selection = false; // text is selected on the page, to reply to just that
 
+  offset = { x: 0, y: 0 }; // where you've dragged Charmly to, relative to its dock
+  private hover = false; // the pointer is over the resting dot, so it shows the full pill
+  private hoverTimer: number | undefined;
+  private drag: { x: number; y: number; ox: number; oy: number; moved: boolean } | null = null;
+  private dragged = false; // swallow the click that ends a drag
+  private clickTimer: number | undefined; // a click on the dot waits a moment, in case it's a double-click
   private sheet = false; // the per-chat sheet is open
   private pace: Pace = 4; // chosen in the sheet
   private fields: Record<string, string> = {}; // what's typed in the sheet, kept across re-renders
@@ -72,6 +79,46 @@ export class Tray {
     this.panel = this.root.querySelector(".tray")!;
     document.documentElement.appendChild(this.host);
     this.root.addEventListener("click", (e) => this.click(e as MouseEvent));
+    // At rest Charmly is a small dot; hovering it expands the pill (after a beat, so a quick click still works).
+    this.panel.addEventListener("pointerenter", () => {
+      clearTimeout(this.hoverTimer);
+      this.hoverTimer = window.setTimeout(() => this.setHover(true), 220);
+    });
+    this.panel.addEventListener("pointerleave", () => {
+      clearTimeout(this.hoverTimer);
+      this.hoverTimer = window.setTimeout(() => this.setHover(false), 650);
+    });
+    // Drag the dot (or the Charmly mark on the open tray) to move it out of the way; double-click to reset.
+    this.root.addEventListener("pointerdown", (e) => {
+      const ev = e as PointerEvent;
+      if (!(ev.target as HTMLElement).closest("[data-drag]") || ev.button !== 0) return;
+      this.drag = { x: ev.clientX, y: ev.clientY, ox: this.offset.x, oy: this.offset.y, moved: false };
+      clearTimeout(this.hoverTimer);
+    });
+    window.addEventListener("pointermove", (e) => {
+      if (!this.drag) return;
+      const dx = e.clientX - this.drag.x;
+      const dy = e.clientY - this.drag.y;
+      if (!this.drag.moved && Math.hypot(dx, dy) < 5) return;
+      this.drag.moved = true;
+      this.offset = { x: this.drag.ox + dx, y: this.drag.oy + dy };
+      if (this.anchor) this.place(this.anchor, this.panel.classList.contains("dark"));
+    });
+    window.addEventListener("pointerup", () => {
+      if (this.drag?.moved) {
+        this.dragged = true;
+        setTimeout(() => (this.dragged = false), 0);
+        this.h.moved(this.offset);
+      }
+      this.drag = null;
+    });
+    this.root.addEventListener("dblclick", (e) => {
+      if (!(e.target as HTMLElement).closest("[data-drag]")) return;
+      clearTimeout(this.clickTimer);
+      this.offset = { x: 0, y: 0 };
+      this.h.moved(this.offset);
+      if (this.anchor) this.place(this.anchor, this.panel.classList.contains("dark"));
+    });
     this.root.addEventListener("input", (e) => {
       const el = e.target as HTMLInputElement;
       if (el.dataset.field) this.fields[el.dataset.field] = el.value;
@@ -91,10 +138,19 @@ export class Tray {
    * Dock above the message box (below it when the box is near the top of the page). Layouts change as panels
    * open, so this runs on every render and resize. A small box still gets a usable tray, kept on screen.
    */
+  private anchor: HTMLElement | null = null;
+
+  /**
+   * Dock at the right end of the message box (where your own messages are, so theirs stay visible), shifted by
+   * wherever you've dragged it, and kept on screen. Below the box when the box is near the top of the page.
+   * Layouts change as panels open, so this runs on every render and resize.
+   */
   place(anchor: HTMLElement | null, dark: boolean) {
     const panel = this.panel;
+    this.anchor = anchor;
     panel.classList.toggle("dark", dark);
     const vw = window.innerWidth;
+    const vh = window.innerHeight;
     if (!anchor) {
       // Nothing to dock to: only a message needs showing, floating at the bottom of the page.
       if (this.state.kind !== "error") {
@@ -102,21 +158,25 @@ export class Tray {
         return;
       }
       const width = Math.min(460, vw - 24);
-      Object.assign(panel.style, { display: "", top: "", bottom: "24px", width: `${width}px`, left: `${Math.round((vw - width) / 2)}px` });
+      Object.assign(panel.style, { display: "", top: "", bottom: "24px", right: "", width: `${width}px`, left: `${Math.round((vw - width) / 2)}px` });
       return;
     }
     const r = anchor.getBoundingClientRect();
-    const width = Math.round(Math.max(Math.min(r.width - 24, 760), Math.min(420, vw - 24)));
-    const left = Math.round(Math.min(Math.max(r.left + 12, 12), vw - width - 12));
+    const open = this.state.kind !== "pill" || this.sheet;
+    const width = open ? Math.round(Math.max(Math.min(r.width - 24, 760), Math.min(420, vw - 24))) : 0;
+    const shown = width || panel.offsetWidth || 40;
+    const right = Math.round(Math.min(Math.max(vw - r.right + 12 - this.offset.x, 8), vw - shown - 8));
     panel.style.display = "";
-    panel.style.left = `${left}px`;
-    panel.style.width = `${width}px`;
-    if (r.top < 320 && window.innerHeight - r.bottom > 320) {
+    panel.style.left = "";
+    panel.style.right = `${right}px`;
+    panel.style.width = width ? `${width}px` : "";
+    const below = r.top < 320 && vh - r.bottom > 320;
+    if (below) {
       panel.style.bottom = "";
-      panel.style.top = `${Math.round(r.bottom + 10)}px`;
+      panel.style.top = `${Math.round(Math.min(Math.max(r.bottom + 10 + this.offset.y, 8), vh - 60))}px`;
     } else {
       panel.style.top = "";
-      panel.style.bottom = `${Math.round(window.innerHeight - r.top + 10)}px`;
+      panel.style.bottom = `${Math.round(Math.min(Math.max(vh - r.top + 10 - this.offset.y, 8), vh - 60))}px`;
     }
   }
 
@@ -144,6 +204,15 @@ export class Tray {
 
   finish(dropped: number) {
     if (this.state.kind === "loading") this.set({ kind: "ready", vibe: this.state.vibe, suggestions: this.state.suggestions, dropped, polishing: this.state.polishing });
+  }
+
+  private setHover(on: boolean) {
+    if (this.hover === on || (on && this.drag)) return;
+    this.hover = on;
+    if (this.state.kind === "pill") {
+      this.render(true);
+      if (this.anchor) this.place(this.anchor, this.panel.classList.contains("dark"));
+    }
   }
 
   /** Re-render with the current state, e.g. after the model list loads. */
@@ -216,6 +285,12 @@ export class Tray {
         if (act === "goal-done") this.sheet = false;
         return this.h.goalAction(act.slice(5) as "skip" | "now" | "again" | "done");
       case "suggest":
+        if (this.dragged) return;
+        if (target.classList.contains("dot")) {
+          clearTimeout(this.clickTimer);
+          this.clickTimer = window.setTimeout(() => this.h.suggest(this.tone), 260);
+          return;
+        }
         return this.h.suggest(this.tone);
       case "polish":
         return this.h.polish();
@@ -236,7 +311,7 @@ export class Tray {
   // ---- pieces -------------------------------------------------------------------------------------------
 
   private brand() {
-    return `<span class="mark" aria-hidden="true"></span><b>Charmly</b><a class="by" href="${AUTHOR_URL}" target="_blank" rel="noopener" title="Charmly is designed and built by Balaji Sri Raj">${CREDIT}</a>`;
+    return `<span class="mark" data-drag title="Drag to move · double-click to reset" aria-hidden="true"></span><b data-drag>Charmly</b><a class="by" href="${AUTHOR_URL}" target="_blank" rel="noopener" title="Charmly is designed and built by Balaji Sri Raj">${CREDIT}</a>`;
   }
 
   private engineLabel() {
@@ -334,7 +409,12 @@ export class Tray {
     const s = this.state;
     let body = "";
 
-    if (s.kind === "pill") {
+    if (s.kind === "pill" && !this.hover && !this.sheet && !this.selection) {
+      // Resting: a small breathing dot. A ring shows Steer's progress; a pip means there's a draft to polish.
+      const g = this.goal;
+      const ring = g ? (g.said ? 1 : (g.step + (g.awaiting ? 0.5 : 0)) / g.pace) : 0;
+      body = `<button class="dot ${g ? "steering" : ""}" data-act="suggest" data-drag style="--ring:${ring}" title="Charmly by Balaji Sri Raj · click for replies, hover for more, drag to move" aria-label="Charmly: suggest replies">${s.draft ? '<i class="pip"></i>' : ""}</button>`;
+    } else if (s.kind === "pill") {
       body = `<div class="bar">${this.brand()}
           <button class="ghost" data-act="suggest">${this.selection ? "Reply to selected text" : "Suggest replies"}${this.selection ? "" : ` <kbd>${ALT}R</kbd>`}</button>
           ${s.draft ? `<button class="ghost polish" data-act="polish">Polish my draft <kbd>${ALT}P</kbd></button>` : ""}
@@ -346,7 +426,7 @@ export class Tray {
     } else {
       const header = `<div class="bar">${this.brand()}${this.vibeLine(s.vibe, s.polishing)}<span class="spacer"></span>${this.setupChip()}
           <button class="icon" data-act="suggest" aria-label="Regenerate" title="Regenerate (${ALT}R)">↻</button>
-          <button class="x" data-act="close" aria-label="Close" title="Hide (Esc)">×</button></div>`;
+          <button class="x" data-act="close" aria-label="Collapse" title="Collapse to the dot (Esc)">×</button></div>`;
       if (this.sheet) {
         body = header + this.sheetView();
       } else {
@@ -374,7 +454,8 @@ export class Tray {
       }
     }
     const keep = ["dark", "enter", "peek"].filter((c) => this.panel.classList.contains(c));
-    this.panel.className = ["tray", s.kind, this.sheet ? "with-sheet" : "", ...keep].filter(Boolean).join(" ");
+    const resting = s.kind === "pill" && !this.hover && !this.sheet && !this.selection;
+    this.panel.className = ["tray", s.kind, resting ? "resting" : "", this.sheet ? "with-sheet" : "", ...keep].filter(Boolean).join(" ");
     this.panel.innerHTML = body;
     this.shown = s.kind === "loading" || s.kind === "ready" ? s.suggestions.length : 0;
   }

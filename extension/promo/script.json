@@ -194,5 +194,100 @@
     ],
     "pick": 0
   },
-  "capturedAt": "2026-11-03T19:31:54.179Z"
+  "capturedAt": "2026-11-03T19:31:54.179Z",
+  "extras": {
+    "polish": {
+      "name": "Arun",
+      "history": [
+        [
+          "in",
+          "machan are we still on for saturday? 🏏"
+        ]
+      ],
+      "draft": "cant make it sat, work stuff came up sorry"
+    },
+    "space": {
+      "name": "Sam",
+      "history": [
+        [
+          "out",
+          "hey! did you see the match?"
+        ],
+        [
+          "in",
+          "honestly so tired today, can we talk tomorrow?"
+        ]
+      ]
+    },
+    "work": {
+      "name": "Priya (Manager)",
+      "history": [
+        [
+          "in",
+          "Hi! Could you send me the deck before 5 today?"
+        ]
+      ]
+    },
+    "takes": {
+      "polish": {
+        "vibe": "polishing your draft",
+        "cards": [
+          {
+            "tone": "warm",
+            "text": "Sorry, work has a funny way of piling up on weekends. Hope you understand.",
+            "why": ""
+          },
+          {
+            "tone": "playful",
+            "text": "Work is a real party pooper. Can't make it Sat, gutted.",
+            "why": ""
+          },
+          {
+            "tone": "direct",
+            "text": "Can't make it Sat, got work stuff.",
+            "why": ""
+          }
+        ],
+        "pick": 0,
+        "draft": "cant make it sat, work stuff came up sorry"
+      },
+      "space": {
+        "vibe": "tired · making plans · keeping it gentle",
+        "cards": [
+          {
+            "tone": "warm",
+            "text": "no worries, take a rest, we can talk tomorrow",
+            "why": "you"
+          },
+          {
+            "tone": "direct",
+            "text": "alright, sleep tight, we'll catch up tomorrow",
+            "why": "no space"
+          }
+        ],
+        "pick": 0
+      },
+      "work": {
+        "vibe": "excited · asking you something",
+        "cards": [
+          {
+            "tone": "warm",
+            "text": "I'll prioritize it, but I just checked and it's not possible to get it done by 5 today",
+            "why": "explain"
+          },
+          {
+            "tone": "playful",
+            "text": "Sorry, I was up all night brainstorming and I lost track of time. Can I get another day?",
+            "why": "show I'm willing to listen"
+          },
+          {
+            "tone": "direct",
+            "text": "I'm not going to be able to get it done by 5 today. Can we discuss a revised timeline for tomorrow?",
+            "why": "ask for a solution"
+          }
+        ],
+        "pick": 0
+      }
+    }
+  }
 }

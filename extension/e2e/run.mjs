@@ -65,10 +65,67 @@ try {
   const waitCards = (n) =>
     page.waitForFunction((n) => document.querySelector("charmly-tray").shadowRoot.querySelectorAll("button.card").length >= n && !document.querySelector("charmly-tray").shadowRoot.querySelector(".skeleton"), { timeout: 10000 }, n);
   const outgoing = () => page.evaluate(() => document.querySelectorAll(".message-out").length);
+  // Hover Charmly's resting dot so it expands into the pill, as a person would.
+  const expand = async (p = page) => {
+    const at = await p.evaluate(() => {
+      const b = document.querySelector("charmly-tray").shadowRoot.querySelector(".tray").getBoundingClientRect();
+      return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+    });
+    await p.mouse.move(at.x, at.y);
+    await sleep(450);
+  };
+  const away = async (p = page) => {
+    await p.mouse.move(4, 4);
+    await sleep(800);
+  };
 
   console.log("Charmly end to end");
-  check(await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.pill") !== null), "docks as a small pill above the message box");
+  await sleep(600);
+  check(await tray(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.resting .dot")), "rests as a small breathing dot, out of the way");
+  const dock = await page.evaluate(() => {
+    const t = document.querySelector("charmly-tray").shadowRoot.querySelector(".tray").getBoundingClientRect();
+    const f = document.querySelector("#main footer").getBoundingClientRect();
+    return { right: f.right - t.right, above: f.top - t.bottom };
+  });
+  check(dock.right > 0 && dock.right < 40 && dock.above > 0 && dock.above < 30, `docks at the right end of the message box (${Math.round(dock.right)}px in, ${Math.round(dock.above)}px above)`);
+  await expand();
+  check(await tray(() => /Suggest replies/.test(document.querySelector("charmly-tray").shadowRoot.textContent) && !document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.resting")), "hovering the dot expands it into the pill");
+  await away();
+  check(await tray(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.resting")), "and it settles back into the dot");
+  // Drag it out of the way; it stays there, and double-click puts it back.
+  const before = await page.evaluate(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".tray").getBoundingClientRect().toJSON());
+  await page.mouse.move(before.x + 18, before.y + 18);
+  await page.mouse.down();
+  await page.mouse.move(before.x - 180, before.y - 260, { steps: 8 });
+  await page.mouse.up();
+  await sleep(300);
+  const after = await page.evaluate(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".tray").getBoundingClientRect().toJSON());
+  // The dot breathes (scales slightly), so allow a few pixels.
+  check(Math.abs(before.right - after.right - 198) < 6 && Math.abs(before.bottom - after.bottom - 278) < 6, `drags anywhere (moved ${Math.round(before.right - after.right)}px left, ${Math.round(before.bottom - after.bottom)}px up)`);
+  await sleep(400);
+  check(await tray(() => !document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.loading, .tray.ready")), "a drag doesn't ask for replies");
+  const saved = await (async () => {
+    const sw0 = browser.targets().find((t) => t.type() === "service_worker");
+    const p = await browser.newPage();
+    await p.goto(`chrome-extension://${new URL(sw0.url()).host}/popup.html`);
+    const v = await p.evaluate(() => chrome.storage.local.get("trayOffsets"));
+    await p.close();
+    await page.bringToFront();
+    return v.trayOffsets;
+  })();
+  check(Object.values(saved ?? {}).some((o) => o.x === -198 && o.y === -278), "remembers where you put it, per site");
+  await away();
+  const moved = await page.evaluate(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".tray").getBoundingClientRect().toJSON());
+  await page.mouse.click(moved.x + moved.width / 2, moved.y + moved.height / 2, { count: 1 });
+  await page.mouse.click(moved.x + moved.width / 2, moved.y + moved.height / 2, { count: 2 });
+  await sleep(500);
+  const reset = await page.evaluate(() => document.querySelector("charmly-tray").shadowRoot.querySelector(".tray").getBoundingClientRect().toJSON());
+  check(Math.abs(reset.right - before.right) < 2 && Math.abs(reset.bottom - before.bottom) < 2, "double-click puts it back");
+  check(await tray(() => !document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.loading, .tray.ready")), "and a double-click doesn't ask for replies");
+  await away();
+  await expand();
   check(await tray(() => { const a = document.querySelector("charmly-tray").shadowRoot.querySelector("a.by"); return a?.textContent === "by Balaji Sri Raj" && a.href.startsWith("https://balajisriraj.com"); }), "credits Balaji Sri Raj in the tray");
+  await away();
   const sentBefore = await outgoing();
 
   // A new incoming message triggers suggestions automatically.
@@ -111,7 +168,10 @@ try {
   await page.keyboard.press("Escape");
   await sleep(100);
   check(await tray(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".tray.pill")), "Escape tucks the tray away");
-  check(await tray(() => /Polish my draft/.test(document.querySelector("charmly-tray").shadowRoot.textContent)), "offers to polish the draft you have");
+  check(await tray(() => !!document.querySelector("charmly-tray").shadowRoot.querySelector(".dot .pip")), "the dot shows a pip when there's a draft");
+  await expand();
+  check(await tray(() => /Polish my draft/.test(document.querySelector("charmly-tray").shadowRoot.textContent)), "and offers to polish it");
+  await away();
 
   // When they want space, Charmly stays gentle and never flirts.
   await page.evaluate(() => window.chat.receive("honestly I'm exhausted, can we talk later"));
@@ -195,7 +255,10 @@ try {
   const q = (expr) => page.evaluate(`(() => { const r = ${R}; return ${expr}; })()`);
   const act = (sel) => page.evaluate(`${R}.querySelector(${JSON.stringify(sel)}).click()`);
   const status = () => q("r.querySelector('.goal .g-status')?.textContent ?? ''");
-  const chip = () => q("r.querySelector('.goal-chip span')?.textContent ?? ''");
+  const chip = async () => {
+    await expand(); // the resting dot shows progress as a ring; hovering shows the chip
+    return q("r.querySelector('.goal-chip span')?.textContent ?? ''");
+  };
   const stepName = async () => (await status()).match(/· (.+?)(,|$)/)?.[1] ?? (await status());
   const setGoal = async (text, pace) => {
     await act(".setup");
@@ -286,7 +349,7 @@ try {
   // The step is remembered per chat.
   await page.evaluate(() => window.chat.open("Ananya"));
   await sleep(300);
-  check(!(await q("!!r.querySelector('.goal-chip')")), "another chat has no goal");
+  check(!(await q("!!r.querySelector('.goal-chip') || !!r.querySelector('.dot.steering')")), "another chat has no goal");
   await page.evaluate(() => window.chat.open("Arjun"));
   await sleep(300);
   check((await chip()) === "2/4", `the goal and its step are remembered for this chat (${await chip()})`);
@@ -323,6 +386,7 @@ try {
   const shadow = (sel) => ({
     click: () => page.evaluate((sel) => document.querySelector("charmly-tray").shadowRoot.querySelector(sel).click(), sel),
   });
+  await expand();
   await (await shadow(".setup")).click();
   check(await tray(() => document.querySelector("charmly-tray").shadowRoot.querySelectorAll(".sheet [data-act=preset]").length >= 5), "the sheet lists the starter presets");
   await (await shadow('.sheet [data-act=preset][data-id="work"]')).click();
