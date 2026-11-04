@@ -250,38 +250,6 @@ pnpm e2e                      # the real extension in Chrome, on a local chat pa
 
 By default the on-device checks run against a stand-in that speaks Ollama's API and answers in a deliberately messy small-model format, so CI covers them. `OLLAMA_E2E=http://localhost:11434 OLLAMA_MODEL=llama3.2:3b pnpm e2e` runs them against a real model, which also passes.
 
-## The film, made in code
-
-The film ([`promo/blink.ts`](extension/promo/blink.ts)) shows every feature at 120 bpm: a card that says what it does and why, then the real tray doing it, held long enough to read. It isn't a screen recording. It is rendered from code, frame by frame, in two passes:
-
-1. **Capture** ([`promo/capture.mjs`](extension/promo/capture.mjs), and [`capture-extras.mjs`](extension/promo/capture-extras.mjs) for the Polish, Work-preset and back-off takes) drives the real extension in Chrome with the real on-device model (`llama3.2:3b`), through the real UI: it opens the sheet, sets the goal, inserts the chosen card and presses send. Maya's lines are written for the film. **Every suggestion is real output.** A director picks the take like an editor would: a natural, complete line, no ask before the last step, a real invitation on the last step. A weak take gets regenerated, as you would press ↻. The result is [`promo/script.json`](extension/promo/script.json).
-2. **Render** ([`render.mjs`](extension/promo/render.mjs)) builds the film from that data. The tray on screen is **Charmly's actual `Tray` component**, bundled into the film page and fed the captured suggestions. A timeline of beats drives everything else, and `renderAt(t)` sets the page to exactly what frame `t` shows:
-   - chat messages and typing indicators;
-   - camera moves (eased zooms into the tray);
-   - a cursor path with click ripples;
-   - captions, title cards and key caps.
-
-   Puppeteer steps through about 4,500 frames at 30 fps, and ffmpeg encodes them. Text stays vector-sharp at any zoom, and motion never drops a frame.
-
-The score ([`music_upbeat.py`](extension/promo/music_upbeat.py)) is original, synthesised in plain Python and composed to the film's own markers. It is modern drums with a Japanese, reflective colour, at 120 bpm:
-- **The groove:** a punchy kick and clap, hi-hat rolls, a deep 808 bass, and warm chords that breathe with the kick.
-- **The Japanese colour:** taiko on the downbeats and fills, shime-daiko accents, a koto-style riff in the Yo pentatonic scale, and a breathy shakuhachi-style flute over the hook.
-- **Steer:** the flute alone, then an accelerating taiko roll into the "Steer." drop. Steer's story runs half-time under big taiko hits.
-- **Mastering:** normalised to -14 LUFS.
-
-Making the film was also a test: the capture surfaced four small-model formatting bugs, all fixed in the product:
-- a leaked "Me:" label;
-- "Option 2" and tone labels;
-- format records slipping through the fallback path;
-- bare "yes" whys.
-
-```bash
-node promo/capture.mjs                  # needs Ollama; writes promo/script.json
-node promo/capture-extras.mjs           # the extra takes for the promo
-node promo/render.mjs                   # the film → promo/out/charmly-promo.mp4 (1080p) and charmly-promo-web.mp4 (for the README)
-node promo/render.mjs --preview 47      # one frame, for art direction
-node promo/render.mjs --music track.mp3 # bring your own licensed track
-```
 
 ## Layout
 
