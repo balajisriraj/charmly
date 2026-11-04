@@ -69,7 +69,7 @@ const film = resolve(OUT, `charmly-${FILM}.mp4`);
 execFileSync("ffmpeg", ["-y", "-v", "error", "-i", silent, "-i", track, "-filter_complex", `[1:a]atrim=0:${duration.toFixed(2)},loudnorm=I=-14:TP=-1.2:LRA=11,afade=t=in:d=0.6,afade=t=out:st=${(duration - 2.4).toFixed(2)}:d=2.4[a]`, "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", film]);
 
 // For the README: web-sized films; the Steer story also cuts the feature GIFs.
-const web = (name) => execFileSync("ffmpeg", ["-y", "-v", "error", "-i", film, "-vf", "scale=1280:-2:flags=lanczos", "-c:v", "libx264", "-crf", "23", "-preset", "slow", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", resolve(DOCS, name)]);
+const web = (name) => execFileSync("ffmpeg", ["-y", "-v", "error", "-i", film, "-vf", "scale=1280:-2:flags=lanczos", "-c:v", "libx264", "-crf", "28", "-preset", "slow", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", resolve(DOCS, name)]);
 function gif(name, [from, to], { width = 880, fps = 12, speed = 1 } = {}) {
   const palette = resolve(OUT, `${name}-palette.png`);
   const vf = `trim=${from.toFixed(2)}:${to.toFixed(2)},setpts=(PTS-STARTPTS)/${speed},fps=${fps},scale=${width}:-1:flags=lanczos`;
@@ -78,7 +78,7 @@ function gif(name, [from, to], { width = 880, fps = 12, speed = 1 } = {}) {
 }
 if (FILM === "blink") {
   web("charmly-promo.mp4");
-  gif("demo-blink", scenes.teaser, { width: 800, fps: 15 });
+  gif("demo-blink", scenes.teaser, { width: 760, fps: 12 });
 } else {
   web("charmly-steer-film.mp4");
   gif("demo-steer", scenes.steer, { speed: 1.3 });

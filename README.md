@@ -4,8 +4,8 @@
 
 Charmly is a Chrome extension for WhatsApp Web, and for any other messaging site in Chrome through one shortcut. When a new message arrives in the chat you have open, it reads the conversation, gets the vibe, and suggests three replies that sound like *you*: warm, playful, direct, or flirty if you've opted in. Tap one and it goes into your message box. You edit it or press Enter yourself. **Charmly never sends anything.**
 
-<p align="center"><a href="docs/charmly-promo.mp4"><img src="docs/demo-blink.gif" width="92%" alt="Charmly in 30 seconds: the hook, the vibe, three replies, tones, polish, presets" /></a><br />
-<sub><b><a href="docs/charmly-promo.mp4">▶ Watch the film</a></b> (81 seconds, with sound): every feature, cut on the beat, with a slower Steer section. Then <b><a href="docs/charmly-steer-film.mp4">the Steer story</a></b> (97 seconds), a date night in four messages. Every suggestion in both is real output from the on-device model. <a href="#the-films-made-in-code">How they were made</a>.</sub></p>
+<p align="center"><a href="docs/charmly-promo.mp4"><img src="docs/demo-blink.gif" width="92%" alt="Charmly in 22 seconds: the hook, the vibe, three replies" /></a><br />
+<sub><b><a href="docs/charmly-promo.mp4">▶ Watch the film</a></b> (2½ minutes, with sound): every feature, explained and then shown on the real tray, with Steer step by step. Then <b><a href="docs/charmly-steer-film.mp4">the Steer story</a></b> (97 seconds), a date night in four messages. Every suggestion in both is real output from the on-device model. <a href="#the-films-made-in-code">How they were made</a>.</sub></p>
 
 ![Charmly reads the vibe and suggests three replies, in your voice](docs/demo-suggestions.gif)
 
@@ -258,7 +258,7 @@ By default the on-device checks run against a stand-in that speaks Ollama's API 
 ## The films, made in code
 
 There are two films:
-- **The promo** ([`promo/blink.ts`](extension/promo/blink.ts)) shows every feature, cut on the beat at 120 bpm: kinetic type, then punch-ins on the real tray.
+- **The promo** ([`promo/blink.ts`](extension/promo/blink.ts)) shows every feature at 120 bpm: a card that says what it does and why, then the real tray doing it, held long enough to read.
 - **The Steer story** ([`promo/film.ts`](extension/promo/film.ts)) is a calm walk through a date-night goal.
 
 Neither is a screen recording. Both are rendered from code, frame by frame, in two passes:

@@ -1,5 +1,5 @@
-// The fast promo: every feature, cut on the beat (120 bpm). A list of shots, each so many beats long: kinetic
-// type that snaps in, and punch-ins on Charmly's real Tray component showing real captured suggestions.
+// The promo: every feature, paced to be read (120 bpm). A list of shots, each so many beats long: kinetic type
+// that snaps in, and punch-ins on Charmly's real Tray component showing real captured suggestions.
 // renderAt(t) draws the shot under t, so render.mjs can step through frames deterministically.
 import { Tray } from "../src/content/tray";
 import { type Goal, newGoal, onMessage, sayNow } from "../src/shared/goal";
@@ -91,6 +91,7 @@ type View = {
     glass?: boolean; // the tray's real see-through glass, rather than the firmer look under the pointer
     peek?: [number, number]; // seconds into the shot: fade out, back
     insertAt?: number; // seconds into the shot: tap the picked card (it fills the message box)
+    stagger?: [number, number]; // seconds: when the first card arrives, and the gap to the next
   };
   caption?: [string, string]; // eyebrow and title, in the pill at the top
   cam: [number, Aim, number, Aim]; // scale and aim at the start, then at the end
@@ -148,13 +149,14 @@ function renderTray(app: "wa" | "ms", v: View, u: number) {
   i.sheet = false;
   const take = t.take;
   if (t.kind === "stream" && take) {
-    const at = (k: number) => 0.12 + k * 0.17;
+    const [first, gap] = t.stagger ?? [0.12, 0.17];
+    const at = (k: number) => first + k * gap;
     const shown = take.cards.filter((_, k) => at(k) <= u).length;
     const vibe = u >= 0.05 ? vibeOf(take.vibe) : null;
     tr.set(shown === take.cards.length ? { kind: "ready", vibe, suggestions: asSuggestions(take.cards), dropped: 0, polishing: !!t.polishing } : { kind: "loading", vibe, suggestions: asSuggestions(take.cards.slice(0, shown)), polishing: !!t.polishing });
     if (t.insertAt !== undefined && u >= t.insertAt && shown === take.cards.length) tr.markInserted(take.pick);
     tr.host.shadowRoot!.querySelectorAll<HTMLElement>("button.card").forEach((c, k) => {
-      const p = out(clamp((u - at(k)) / 0.22));
+      const p = out(clamp((u - at(k)) / (t.stagger ? 0.35 : 0.22)));
       c.style.opacity = String(p);
       c.style.transform = `translateY(${(1 - p) * 16}px) scale(${0.96 + 0.04 * p})`;
     });
@@ -214,109 +216,94 @@ const steps = (n: number) => {
   return g;
 };
 
-// Hook.
-word(1, big("You know", "m"));
-word(1, big("what you want", "m"));
-word(2, big("to say.", "m"));
-word(1.5, big("Finding the words", "s"), "white");
-word(2.5, big("is the hard part.", "s"), "white");
-// Reveal.
+// Every feature gets the same rhythm: a card that says what it does and why (long enough to read), then the real
+// tray doing it, held long enough to take in, with a caption naming it. Quick cuts are kept for accents only.
+const SLOW: [number, number] = [0.45, 0.5];
+const chips = (...xs: string[]) => `<div class="chips">${xs.map((x) => `<span>${x}</span>`).join("")}</div>`;
+const card = (beats: number, title: string, line: string, bg: Bg = "white", extra: Partial<Shot> = {}) => word(beats, `${big(title, "s")}${sub(line)}`, bg, extra);
+const roomChat = { name: "Maya", lines: maya.slice(0, AFTER_ROOM) };
+const done = () => ({ ...sayNow(newGoal(S.goal, 4)), said: true });
+
+// Hook: the problem.
+word(4, `${big("You know what", "m")}${big("you want to say.", "m")}`);
+word(5, `${big("Finding the words", "s")}${big("is the hard part.", "s")}${sub("Especially when the message matters.")}`, "white");
+// Reveal: the answer.
 word(4, `<div class="logo"></div>${big("Charmly")}`, "white", { mark: "reveal", hit: true });
-word(1.5, big("Better replies.", "m"), "black");
-word(2.5, big(`In ${grad("your")} voice.`, "m"), "black");
-// It reads the vibe; three replies.
-word(1, big("It reads", "m"), "white");
-word(1, big(grad("the vibe."), "m"), "white");
-ui(2, { tray: { kind: "ready", take: S.room }, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [2.7, "tray:.vibe", 2.35, "tray:.vibe"] });
-word(1, big("Three replies.", "m"), "black");
-ui(3, { tray: { kind: "stream", take: S.room }, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [1.3, "tray:.cards", 1.18, "tray:.cards"] });
-// Tones.
-word(1, big("Warm."), "warm");
-word(1, big("Playful."), "playful");
-word(1, big("Direct."), "direct");
-word(1, big("Flirty."), "flirty");
-ui(1.5, { tray: { kind: "ready", take: S.room }, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [3.1, "tray:.tones", 2.7, "tray:.tones"] });
-// Tap to insert; keys.
-word(1, big("Tap."), "black");
-ui(2, { tray: { kind: "ready", take: S.room, inserted: S.room.pick }, composer: S.room.cards[S.room.pick].text, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [1.35, { x: 1100, y: 900 }, 1.55, { x: 1050, y: 920 }] });
-word(2, big("You press send.", "m"), "white");
-for (const k of ["1", "2", "3", "R"]) word(0.5, keys("⌥", k), "white");
-// Polish.
-word(2, big("Polish my draft.", "s"), "grad", { hit: true });
+word(5, `${big(`Better replies. In ${grad("your")} voice.`, "s")}${sub("A Chrome extension for WhatsApp Web, and any chat site.")}`, "black");
+
+// 1. It reads the vibe.
+card(4, "It reads the vibe.", "Mood, intent and language, from the conversation so far.", "white");
+ui(8, { tray: { kind: "ready", take: S.room }, chat: roomChat, cam: [2.3, "tray:.vibe", 2.05, "tray:.vibe"], caption: ["Reads the room", "Mood · intent · language"] });
+// 2. Three replies, each with a reason.
+card(4, "Then suggests three replies.", "Each in a different tone, each with a line on why.", "black");
+ui(10, { tray: { kind: "stream", take: S.room, stagger: SLOW }, chat: roomChat, cam: [1.55, "tray:.cards", 1.75, "tray:.cards"], caption: ["Three replies", "Written for this exact moment"] }, { hit: true });
+// 3. Tones.
+word(2, big("Warm."), "warm", { mark: "teaserEnd" });
+word(2, big("Playful."), "playful");
+word(2, big("Direct."), "direct");
+word(2, `${big("Flirty.")}${sub("Only if you opt in.")}`, "flirty");
+ui(7, { tray: { kind: "ready", take: S.room }, chat: roomChat, cam: [2.6, "tray:.tones", 2.35, "tray:.tones"], caption: ["Your tone", "Switch it in one tap"] });
+// 4. Tap to insert; you send.
+card(4, "Tap one. It fills your message box.", "Edit it if you like. You press send.", "white");
+ui(10, { tray: { kind: "stream", take: S.room, stagger: SLOW, insertAt: 2.6 }, chat: roomChat, cam: [1.6, "tray:.cards", 1.7, { x: 1100, y: 880 }], caption: ["Tap to insert", "Charmly never sends for you"] });
+word(6, `${keys("⌥", "1")}${sub("Keyboard first: ⌥1, ⌥2, ⌥3 to insert, ⌥R for new ideas.")}`, "white");
+
+// 5. Polish.
+card(4, "Already typed something?", "Polish makes your draft better, and keeps what you meant.", "grad", { hit: true });
 const polish = S.extras.takes.polish;
-ui(3, { tray: { kind: "stream", take: polish, polishing: true, preset: "friends" }, composer: S.extras.polish.draft, chat: { name: "Arun", lines: S.extras.polish.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [1.3, "tray:.cards", 1.18, "tray:.cards"] });
-// Voice presets, rules, notes, style.
-word(1, big("Your voice.", "m"), "white");
-ui(2, { tray: { kind: "pill", sheet: { typed: () => "" } }, cam: [2.4, "tray:.s-voice", 2.1, "tray:.s-voice"] });
-word(0.5, big("Friends."), "black");
-word(0.5, big("Work."), "white");
-word(0.5, big("Family."), "black");
-word(0.5, big("Dating."), "white");
-ui(2.5, { tray: { kind: "stream", take: S.extras.takes.work, preset: "work" }, chat: { name: "Priya (Manager)", lines: S.extras.work.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [1.3, "tray:.cards", 1.18, "tray:.cards"] });
-word(1, big("Always."), "black");
-word(1, big("Never."), "white");
-word(2, big(`Words it ${grad("never")} uses.`, "s"), "black");
-word(2, big("A note for every chat.", "s"), "white");
-word(2, big("Learns how you text.", "s"), "black");
-word(0.5, big("lowercase.", "m"), "white");
-word(0.5, big("😂", "m"), "white");
-word(1, big("short & sweet.", "m"), "white");
-// Space.
-word(2, big("Knows when to back off.", "s"), "black");
-ui(2.5, { tray: { kind: "stream", take: S.extras.takes.space, preset: "friends" }, chat: { name: "Sam", lines: S.extras.space.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [2.2, "tray:.vibe", 1.2, "tray:.cards"] });
-word(2, big("No pressure. Ever.", "s"), "white");
-// Steer: a hush, the drop, then a slower story section so each step registers.
-word(1.5, big("And for the messages", "s"), "black", { mark: "steerIntro" });
-word(2.5, big("that matter most…", "s"), "black");
-word(1.5, big("Introducing", "m"), "black");
-word(2.5, big(grad("Steer.")), "black", { mark: "steerDrop", hit: true });
-word(3, `${big("Say where you want the chat to go.", "s")}${sub("Charmly gets there slowly, one natural step at a time.")}`, "white");
-ui(4, { tray: { kind: "pill", sheet: { typed: (u) => S.goal.slice(0, Math.floor(clamp((u - 0.3) / 1.3) * S.goal.length)) } }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[0]) }, cam: [2.2, "tray:[data-field=goal]", 1.85, "tray:[data-field=goal]"], caption: ["Steer", "Your goal, in your words"] });
-word(0.5, big("Quick."), "white");
-word(0.5, big("Natural."), "black");
-word(1, big("Slow."), "white");
+ui(10, { tray: { kind: "stream", take: polish, polishing: true, preset: "friends", stagger: SLOW }, composer: S.extras.polish.draft, chat: { name: "Arun", lines: S.extras.polish.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [1.55, "tray:.cards", 1.75, "tray:.cards"], caption: ["Polish", "Your draft, said better"] });
+
+// 6. Voice presets: who you are in each kind of chat.
+word(5, `${big("Your voice, per chat.", "s")}${sub("You don't text your boss like your best friend.")}${chips("😎 Friends", "💼 Work", "🏡 Family", "💫 Dating")}`, "white");
+ui(9, { tray: { kind: "pill", sheet: { typed: () => "" } }, cam: [2.1, "tray:.s-voice", 1.9, "tray:.s-voice"], caption: ["Presets", "Pick one for this chat"] });
+ui(9, { tray: { kind: "stream", take: S.extras.takes.work, preset: "work", stagger: SLOW }, chat: { name: "Priya (Manager)", lines: S.extras.work.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [1.55, "tray:.cards", 1.75, "tray:.cards"], caption: ["Work preset", "Same chat, office voice"] });
+card(4, "Rules it always follows.", "What to always do, what never to do, and words it must never use.", "black");
+card(4, "And it learns how you text.", "Length, emoji, lowercase, your “haha”s. Learnt on your laptop.", "white");
+
+// 7. Knows when to back off.
+card(4, "It knows when to back off.", "If they seem tired or want space, every option stays gentle.", "black");
+ui(9, { tray: { kind: "stream", take: S.extras.takes.space, preset: "friends", stagger: SLOW }, chat: { name: "Sam", lines: S.extras.space.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [2.2, "tray:.vibe", 1.7, "tray:.cards"], caption: ["Reads boundaries", "No pressure. Ever."] });
+
+// 8. Steer: a hush, the drop, then the story, one step at a time.
+word(4, `${big("And for the messages", "s")}${big("that matter most…", "s")}`, "black", { mark: "steerIntro" });
+word(2, big("Introducing", "m"), "black");
+word(4, big(grad("Steer.")), "black", { mark: "steerDrop", hit: true });
+card(6, "Say where you want the chat to go.", "Asking someone out. Asking for money back. Charmly gets there one natural step at a time.", "white");
+ui(9, { tray: { kind: "pill", sheet: { typed: (u) => S.goal.slice(0, Math.floor(clamp((u - 0.4) / 2.2) * S.goal.length)) } }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[0]) }, cam: [2.1, "tray:[data-field=goal]", 1.8, "tray:[data-field=goal]"], caption: ["Steer", "Your goal, in your words"] });
+word(5, `${big("Pick a pace.", "m")}${chips("Quick · 3", "Natural · 4", "Slow · 5")}`, "white");
 const STEP_NAMES = ["Find common ground", "Bridge to the topic", "Test the water", "Say it"];
 for (const [i, step] of S.steps.entries()) {
   const goal = i === 3 ? sayNow(newGoal(S.goal, 4)) : steps(i);
   const caption: [string, string] = [`Step ${i + 1} of 4`, STEP_NAMES[i]];
   // The suggestions arrive under the step strip, then the camera settles on the one you pick as it's inserted.
-  ui(4, { tray: { kind: "stream", take: step, goal, insertAt: 1.15 }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[i]) }, cam: [1.3, "tray:.goal", 1.55, `tray:button.card:nth-of-type(${step.pick + 1})`], caption }, i === 0 ? { mark: "steerStory" } : {});
+  ui(7, { tray: { kind: "stream", take: step, goal, insertAt: 2.4, stagger: SLOW }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[i]) }, cam: [1.6, "tray:.goal", 1.85, `tray:button.card:nth-of-type(${step.pick + 1})`], caption }, i === 0 ? { mark: "steerStory" } : {});
   // Then her answer, so every exchange lands.
   const after = maya.slice(0, BEFORE_STEP[i] + 2);
-  ui(i === 3 ? 4 : 2.5, { tray: { kind: "pill", goal: onMessage(onMessage(goal, "me"), "them") }, chat: { name: "Maya", lines: after }, cam: [1.42, "row:#wa .list .row:last-child .bubble", 1.6, "row:#wa .list .row:last-child .bubble"], caption: i === 3 ? ["Said", "Naturally, in four messages."] : caption }, i === 3 ? { hit: true } : {});
+  ui(i === 3 ? 6 : 4, { tray: { kind: "pill", goal: onMessage(onMessage(goal, "me"), "them") }, chat: { name: "Maya", lines: after }, cam: [1.4, "row:#wa .list .row:last-child .bubble", 1.5, "row:#wa .list .row:last-child .bubble"], caption: i === 3 ? ["Said", "Naturally, in four messages."] : caption }, i === 3 ? { hit: true } : {});
 }
-word(1.5, big("Not a script.", "m"), "black", { mark: "steerEnd" });
-word(1.5, big(grad("A path."), "m"), "black");
-// Engines.
-word(1.5, big("On your laptop.", "m"), "white");
-ui(1.5, { tray: { kind: "ready", take: S.after, goal: { ...sayNow(newGoal(S.goal, 4)), said: true } }, cam: [3.4, "tray:.setup", 3.0, "tray:.setup"] });
-word(1, big("Private."), "black");
-word(1, big("Or Claude,", "m"), "white");
-word(2, big("when you want the best.", "s"), "white");
-// Anywhere.
-word(2, big("Anywhere."), "grad", { hit: true });
-for (const [i, name] of ["WhatsApp", "Telegram", "Messenger", "Instagram", "LinkedIn", "Slack", "Discord"].entries()) word(0.5, big(name, "m"), i % 2 ? "white" : "black");
-word(1, big("Any site.", "m"), "grad");
-word(2, keys("⌥", "⇧", "C"), "white");
-ui(2.5, { app: "ms", tray: { kind: "stream", take: S.anywhere, preset: "" }, cam: [1.3, "tray:.cards", 1.18, "tray:.cards"] });
-word(2, big("Reply to anything you select.", "s"), "black");
-// Glass, peek, light and dark.
-word(1.5, big("Out of your way.", "m"), "black");
-ui(2.5, { tray: { kind: "pill", goal: steps(2) }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[2]) }, cam: [1.25, { x: 1300, y: 760 }, 1.9, "tray:.dot"] });
-word(1.5, big("Drag it anywhere.", "m"), "white");
-word(1, big("Clear glass.", "m"), "white");
-ui(2, { tray: { kind: "ready", take: S.after, goal: { ...sayNow(newGoal(S.goal, 4)), said: true }, glass: true }, cam: [1.05, { x: 1180, y: 640 }, 1.2, { x: 1180, y: 700 }] });
-word(1.5, big("Hold ⌥ to peek.", "m"), "black");
-ui(2, { tray: { kind: "ready", take: S.after, goal: { ...sayNow(newGoal(S.goal, 4)), said: true }, glass: true, peek: [0.25, 0.8] }, cam: [1.15, { x: 1180, y: 700 }, 1.15, { x: 1180, y: 700 }] });
-word(1, big("Light."), "white");
-ui(1, { tray: { kind: "ready", take: S.room }, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [1.3, "tray:.cards", 1.18, "tray:.cards"] });
-word(1, big("Dark."), "black");
-ui(1, { dark: true, tray: { kind: "ready", take: S.room }, chat: { name: "Maya", lines: maya.slice(0, AFTER_ROOM) }, cam: [1.3, "tray:.cards", 1.18, "tray:.cards"] });
+word(5, `${big(`Not a script. ${grad("A path.")}`, "s")}${sub("No tricks, no pressure. It pauses if they want space.")}`, "black", { mark: "steerEnd" });
+
+// 9. Engines and privacy.
+card(4, "Runs on your laptop.", "With a local model, your chats never leave the machine.", "white");
+ui(7, { tray: { kind: "ready", take: S.after, goal: done() }, cam: [3.0, "tray:.setup", 2.7, "tray:.setup"], caption: ["On-device", "Private by default"] });
+card(4, "Or Claude, when you want the best.", "Your own key. Only the last few messages, with no names.", "black");
+
+// 10. Anywhere.
+word(5, `${big("Anywhere you chat.", "s")}${chips("WhatsApp", "Telegram", "Messenger", "Instagram", "LinkedIn", "Slack", "Discord")}`, "grad", { hit: true });
+word(5, `${keys("⌥", "⇧", "C")}${sub("On any site: press it in a message box.")}`, "white");
+ui(9, { app: "ms", tray: { kind: "stream", take: S.anywhere, preset: "", stagger: SLOW }, cam: [1.55, "tray:.cards", 1.75, "tray:.cards"], caption: ["Any site", "Even one it has never seen"] });
+
+// 11. Out of the way.
+card(4, "Out of your way.", "A small dot until you need it. Drag it anywhere.", "black");
+ui(7, { tray: { kind: "pill", goal: steps(2) }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[2]) }, cam: [1.2, { x: 1300, y: 760 }, 1.8, "tray:.dot"], caption: ["Resting", "Just a dot by the message box"] });
+ui(8, { tray: { kind: "ready", take: S.after, goal: done(), glass: true, peek: [1.6, 3.0] }, cam: [1.1, { x: 1180, y: 690 }, 1.15, { x: 1180, y: 700 }], caption: ["Clear glass", "Hold ⌥ to peek behind it"] });
+ui(6, { dark: true, tray: { kind: "ready", take: S.room }, chat: roomChat, cam: [1.5, "tray:.cards", 1.65, "tray:.cards"], caption: ["Dark mode", "Glass that fits in"] });
+
 // Never sends; outro.
-word(2, big("Never sends a thing.", "s"), "white");
-word(2, big(grad("You do.")), "black", { hit: true });
-word(4, `<div class="logo"></div>${big("Say what you mean.", "s")}`, "white", { mark: "outro" });
-word(4, `${big(grad("Charmly"))}${sub("by Balaji Sri Raj")}`, "white");
+word(4, big("Never sends a thing.", "s"), "white");
+word(4, big(grad("You do.")), "black", { hit: true });
+word(5, `<div class="logo"></div>${big("Say what you mean.", "s")}`, "white", { mark: "outro" });
+word(6, `${big(grad("Charmly"))}${sub("by Balaji Sri Raj")}`, "white");
 
 // ---- timing and rendering -----------------------------------------------------------------------------------
 const starts: number[] = [];
@@ -415,4 +402,4 @@ function renderAt(t: number) {
   document.body.style.opacity = String(1 - clamp((t - total) / 0.5));
 }
 
-Object.assign(window, { renderAt, DURATION, MARKS: { ...marks, hits, bpm: BPM }, SCENES: { teaser: [0, marks.steerIntro], steer: [marks.steerIntro, marks.steerEnd + 3 * BEAT] } });
+Object.assign(window, { renderAt, DURATION, MARKS: { ...marks, hits, bpm: BPM }, SCENES: { teaser: [0, marks.teaserEnd], steer: [marks.steerIntro, marks.steerEnd + 3 * BEAT] } });
