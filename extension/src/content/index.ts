@@ -252,6 +252,9 @@ function start() {
       return;
     }
     const key = site.lastKey();
+    // On other sites the conversation only becomes readable once you're in a message box. The message already
+    // there when that happens isn't new; only what arrives after it is.
+    if (key && lastKey === null && site.generic) lastKey = key;
     if (key && key !== lastKey) {
       lastKey = key;
       const incoming = key.startsWith("in:");
