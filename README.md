@@ -4,7 +4,11 @@
 
 Charmly is a Chrome extension for WhatsApp Web, and for any other messaging site in Chrome through one shortcut. When a new message arrives in the chat you have open, it reads the conversation, gets the vibe, and suggests three replies that sound like *you*: warm, playful, direct, or flirty if you've opted in. Tap one and it goes into your message box. You edit it or press Enter yourself. **Charmly never sends anything.**
 
-https://github.com/user-attachments/assets/40a98788-6d3d-4a57-87b4-3a0d36648923
+
+
+https://github.com/user-attachments/assets/fbba1533-f56f-458e-846b-afa3d8dc851c
+
+
 
 <sub>The film (2½ minutes, with sound): every feature, explained and then shown on the real tray. Every suggestion in it is real output from the on-device model. <a href="#the-film-made-in-code">How it was made</a>.</sub>
 
