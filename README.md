@@ -5,7 +5,7 @@
 Charmly is a Chrome extension for WhatsApp Web, and for any other messaging site in Chrome through one shortcut. When a new message arrives in the chat you have open, it reads the conversation, gets the vibe, and suggests three replies that sound like *you*: warm, playful, direct, or flirty if you've opted in. Tap one and it goes into your message box. You edit it or press Enter yourself. **Charmly never sends anything.**
 
 <p align="center"><a href="docs/charmly-promo.mp4"><img src="docs/demo-blink.gif" width="92%" alt="Charmly in 30 seconds: the hook, the vibe, three replies, tones, polish, presets" /></a><br />
-<sub><b><a href="docs/charmly-promo.mp4">▶ Watch the film</a></b> (72 seconds, with sound): every feature, cut on the beat. Then <b><a href="docs/charmly-steer-film.mp4">the Steer story</a></b> (97 seconds), a date night in four messages. Every suggestion in both is real output from the on-device model. <a href="#the-films-made-in-code">How they were made</a>.</sub></p>
+<sub><b><a href="docs/charmly-promo.mp4">▶ Watch the film</a></b> (81 seconds, with sound): every feature, cut on the beat, with a slower Steer section. Then <b><a href="docs/charmly-steer-film.mp4">the Steer story</a></b> (97 seconds), a date night in four messages. Every suggestion in both is real output from the on-device model. <a href="#the-films-made-in-code">How they were made</a>.</sub></p>
 
 ![Charmly reads the vibe and suggests three replies, in your voice](docs/demo-suggestions.gif)
 
@@ -274,10 +274,11 @@ Neither is a screen recording. Both are rendered from code, frame by frame, in t
 
 Both scores are original, synthesised in plain Python and composed to each film's own markers.
 
-The promo's score ([`music_upbeat.py`](extension/promo/music_upbeat.py)) is A major at 120 bpm:
-- four-on-the-floor, with a pumping bass, chord stabs and a pentatonic hook;
-- drops on the reveal and on "Steer.";
-- an impact on every big word.
+The promo's score ([`music_upbeat.py`](extension/promo/music_upbeat.py)) is modern drums with a Japanese, reflective colour, at 120 bpm:
+- **The groove:** a punchy kick and clap, hi-hat rolls, a deep 808 bass, and warm chords that breathe with the kick.
+- **The Japanese colour:** taiko on the downbeats and fills, shime-daiko accents, a koto-style riff in the Yo pentatonic scale, and a breathy shakuhachi-style flute over the hook.
+- **Steer:** the flute alone, then an accelerating taiko roll into the "Steer." drop. Steer's story runs half-time under big taiko hits.
+- **Mastering:** normalised to -14 LUFS.
 
 The Steer story's score ([`music.py`](extension/promo/music.py)) is quieter:
 - warm pads in F major under the hook;

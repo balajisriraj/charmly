@@ -66,7 +66,7 @@ writeFileSync(resolve(OUT, "timeline.json"), JSON.stringify({ duration, marks, s
 const track = arg("music") ?? resolve(OUT, "music.wav");
 if (!arg("music")) execFileSync("python3", [resolve(ROOT, FILM === "blink" ? "promo/music_upbeat.py" : "promo/music.py"), track, String(duration), JSON.stringify(marks)], { stdio: "inherit" });
 const film = resolve(OUT, `charmly-${FILM}.mp4`);
-execFileSync("ffmpeg", ["-y", "-v", "error", "-i", silent, "-i", track, "-filter_complex", `[1:a]atrim=0:${duration.toFixed(2)},afade=t=in:d=0.6,afade=t=out:st=${(duration - 2.4).toFixed(2)}:d=2.4[a]`, "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", film]);
+execFileSync("ffmpeg", ["-y", "-v", "error", "-i", silent, "-i", track, "-filter_complex", `[1:a]atrim=0:${duration.toFixed(2)},loudnorm=I=-14:TP=-1.2:LRA=11,afade=t=in:d=0.6,afade=t=out:st=${(duration - 2.4).toFixed(2)}:d=2.4[a]`, "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", film]);
 
 // For the README: web-sized films; the Steer story also cuts the feature GIFs.
 const web = (name) => execFileSync("ffmpeg", ["-y", "-v", "error", "-i", film, "-vf", "scale=1280:-2:flags=lanczos", "-c:v", "libx264", "-crf", "23", "-preset", "slow", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", resolve(DOCS, name)]);

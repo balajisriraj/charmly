@@ -41,7 +41,8 @@ const camera = $("#camera");
 const typeLayer = $("#type");
 const apps = { wa: $("#wa"), ms: $("#ms") };
 $("#cursor").style.display = "none";
-$("#overlay").style.display = "none";
+$("#card").style.display = "none";
+$("#keys").style.display = "none";
 
 const noop = () => {};
 const handlers = { chooseEngine: noop, loadModels: noop, choosePreset: noop, saveNote: noop, saveGoal: noop, goalAction: noop, editPresets: noop, suggest: noop, polish: noop, insert: noop, dismiss: noop, moved: noop };
@@ -73,7 +74,7 @@ for (const step of S.steps) {
 
 // ---- what a UI shot shows ------------------------------------------------------------------------------------
 type Point = { x: number; y: number };
-type Aim = Point | string; // a point, or "tray:<selector>" / "page:<selector>"
+type Aim = Point | string; // a point, or "tray:<selector>" / "page:<selector>" / "row:<selector>" (that element's height, the conversation's centre)
 type View = {
   app?: "wa" | "ms";
   chat?: { name: string; lines: Line[] };
@@ -89,7 +90,9 @@ type View = {
     sheet?: { typed: (u: number) => string };
     glass?: boolean; // the tray's real see-through glass, rather than the firmer look under the pointer
     peek?: [number, number]; // seconds into the shot: fade out, back
+    insertAt?: number; // seconds into the shot: tap the picked card (it fills the message box)
   };
+  caption?: [string, string]; // eyebrow and title, in the pill at the top
   cam: [number, Aim, number, Aim]; // scale and aim at the start, then at the end
 };
 
@@ -104,9 +107,11 @@ function aim(app: "wa" | "ms", a: Aim): Point {
   if (typeof a !== "string") return a;
   const [where, sel] = [a.slice(0, a.indexOf(":")), a.slice(a.indexOf(":") + 1)];
   const el = where === "tray" ? trays[app].host.shadowRoot!.querySelector(sel) : document.querySelector(sel);
-  return local(el) ?? { x: W / 2, y: H / 2 };
+  const p = local(el) ?? { x: W / 2, y: H / 2 };
+  return where === "row" ? { x: (local($(app === "wa" ? "#wa .list" : "#ms .log")) ?? p).x, y: p.y - 40 } : p;
 }
 
+let uNow = 0; // seconds into the current shot
 function renderChat(app: "wa" | "ms", v: View) {
   if (app === "wa") {
     const chat = v.chat ?? { name: "Maya", lines: maya };
@@ -119,6 +124,7 @@ function renderChat(app: "wa" | "ms", v: View) {
       list.innerHTML = html;
     }
     $("#wa .box").textContent = v.composer ?? "";
+    if (v.tray.insertAt !== undefined && v.tray.take) $("#wa .box").textContent = uNow >= v.tray.insertAt ? v.tray.take.cards[v.tray.take.pick].text : "";
     $("#wa .typing").textContent = "online";
     apps.wa.classList.toggle("dark", !!v.dark);
   } else {
@@ -146,6 +152,7 @@ function renderTray(app: "wa" | "ms", v: View, u: number) {
     const shown = take.cards.filter((_, k) => at(k) <= u).length;
     const vibe = u >= 0.05 ? vibeOf(take.vibe) : null;
     tr.set(shown === take.cards.length ? { kind: "ready", vibe, suggestions: asSuggestions(take.cards), dropped: 0, polishing: !!t.polishing } : { kind: "loading", vibe, suggestions: asSuggestions(take.cards.slice(0, shown)), polishing: !!t.polishing });
+    if (t.insertAt !== undefined && u >= t.insertAt && shown === take.cards.length) tr.markInserted(take.pick);
     tr.host.shadowRoot!.querySelectorAll<HTMLElement>("button.card").forEach((c, k) => {
       const p = out(clamp((u - at(k)) / 0.22));
       c.style.opacity = String(p);
@@ -258,22 +265,27 @@ word(1, big("short & sweet.", "m"), "white");
 word(2, big("Knows when to back off.", "s"), "black");
 ui(2.5, { tray: { kind: "stream", take: S.extras.takes.space, preset: "friends" }, chat: { name: "Sam", lines: S.extras.space.history.map(([d, text]) => ({ dir: d as "in" | "out", text })) }, cam: [2.2, "tray:.vibe", 1.2, "tray:.cards"] });
 word(2, big("No pressure. Ever.", "s"), "white");
-// Steer: a hush, then the drop.
+// Steer: a hush, the drop, then a slower story section so each step registers.
 word(1.5, big("And for the messages", "s"), "black", { mark: "steerIntro" });
 word(2.5, big("that matter most…", "s"), "black");
 word(1.5, big("Introducing", "m"), "black");
 word(2.5, big(grad("Steer.")), "black", { mark: "steerDrop", hit: true });
-ui(2.5, { tray: { kind: "pill", sheet: { typed: (u) => S.goal.slice(0, Math.floor(clamp(u / (2.5 * BEAT * 0.7)) * S.goal.length)) } }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[0]) }, cam: [2.4, "tray:[data-field=goal]", 2.05, "tray:[data-field=goal]"] });
+word(3, `${big("Say where you want the chat to go.", "s")}${sub("Charmly gets there slowly, one natural step at a time.")}`, "white");
+ui(4, { tray: { kind: "pill", sheet: { typed: (u) => S.goal.slice(0, Math.floor(clamp((u - 0.3) / 1.3) * S.goal.length)) } }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[0]) }, cam: [2.2, "tray:[data-field=goal]", 1.85, "tray:[data-field=goal]"], caption: ["Steer", "Your goal, in your words"] });
 word(0.5, big("Quick."), "white");
 word(0.5, big("Natural."), "black");
 word(1, big("Slow."), "white");
+const STEP_NAMES = ["Find common ground", "Bridge to the topic", "Test the water", "Say it"];
 for (const [i, step] of S.steps.entries()) {
-  word(1, big(`Step ${i + 1}.`), i % 2 ? "white" : "black");
-  ui(i === 3 ? 2 : 1.5, { tray: { kind: "stream", take: step, goal: i === 3 ? sayNow(newGoal(S.goal, 4)) : steps(i) }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[i]) }, cam: [1.45, "tray:.goal", 1.2, "tray:.cards"] });
+  const goal = i === 3 ? sayNow(newGoal(S.goal, 4)) : steps(i);
+  const caption: [string, string] = [`Step ${i + 1} of 4`, STEP_NAMES[i]];
+  // The suggestions arrive under the step strip, then the camera settles on the one you pick as it's inserted.
+  ui(4, { tray: { kind: "stream", take: step, goal, insertAt: 1.15 }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[i]) }, cam: [1.3, "tray:.goal", 1.55, `tray:button.card:nth-of-type(${step.pick + 1})`], caption }, i === 0 ? { mark: "steerStory" } : {});
+  // Then her answer, so every exchange lands.
+  const after = maya.slice(0, BEFORE_STEP[i] + 2);
+  ui(i === 3 ? 4 : 2.5, { tray: { kind: "pill", goal: onMessage(onMessage(goal, "me"), "them") }, chat: { name: "Maya", lines: after }, cam: [1.42, "row:#wa .list .row:last-child .bubble", 1.6, "row:#wa .list .row:last-child .bubble"], caption: i === 3 ? ["Said", "Naturally, in four messages."] : caption }, i === 3 ? { hit: true } : {});
 }
-ui(2, { tray: { kind: "pill", goal: { ...sayNow(newGoal(S.goal, 4)), awaiting: true, said: true } }, chat: { name: "Maya", lines: maya.slice(0, BEFORE_STEP[3] + 1) }, cam: [1.9, "page:#wa .list .row:last-child .bubble", 1.65, "page:#wa .list .row:last-child .bubble"] });
-ui(2, { tray: { kind: "pill", goal: { ...sayNow(newGoal(S.goal, 4)), awaiting: true, said: true } }, chat: { name: "Maya", lines: maya }, cam: [2.6, "page:#wa .list .row:last-child .bubble", 2.3, "page:#wa .list .row:last-child .bubble"] }, { hit: true });
-word(1.5, big("Not a script.", "m"), "black");
+word(1.5, big("Not a script.", "m"), "black", { mark: "steerEnd" });
 word(1.5, big(grad("A path."), "m"), "black");
 // Engines.
 word(1.5, big("On your laptop.", "m"), "white");
@@ -321,7 +333,26 @@ shots.forEach((s, i) => {
   if (s.hit) hits.push(starts[i]);
 });
 
+const captionEl = $("#caption");
+function renderCaption(c: [string, string] | undefined, u: number) {
+  if (!c) {
+    captionEl.style.opacity = "0";
+    return;
+  }
+  const sig = c.join("|");
+  if (captionEl.dataset.sig !== sig) {
+    captionEl.dataset.sig = sig;
+    captionEl.dataset.since = String(uNow);
+    captionEl.innerHTML = `<div class="eyebrow">${c[0]}</div><div class="title">${c[1]}</div>`;
+  }
+  // A caption carried across shots stays put; a new one rises in.
+  const p = captionEl.dataset.fresh === "1" ? out(clamp(u / 0.3)) : 1;
+  captionEl.style.opacity = String(p);
+  captionEl.style.transform = `translate(-50%, ${(1 - p) * -14}px)`;
+}
+
 function renderType(s: Shot, u: number, dur: number) {
+  renderCaption(undefined, u);
   const { html, bg } = s.type!;
   typeLayer.style.display = "grid";
   camera.style.display = "none";
@@ -354,8 +385,10 @@ function renderView(s: Shot, u: number, dur: number) {
   camera.style.display = "";
   apps.wa.style.display = app === "wa" ? "" : "none";
   apps.ms.style.display = app === "ms" ? "" : "none";
+  uNow = u;
   renderChat(app, v);
   renderTray(app, v, u);
+  renderCaption(v.caption, u);
   // A punch-in: start close, ease out; aim points come from the laid-out set (before the camera transform).
   camera.style.transform = "none";
   const [s0, a0, s1, a1] = v.cam;
@@ -373,6 +406,8 @@ function renderAt(t: number) {
   while (i > 0 && starts[i] > t) i--;
   const s = shots[i];
   const u = t - starts[i];
+  const prev = shots[i - 1]?.view?.caption?.join("|");
+  captionEl.dataset.fresh = s.view?.caption && s.view.caption.join("|") !== prev ? "1" : "0";
   const dur = s.beats * BEAT;
   if (s.type) renderType(s, u, dur);
   else renderView(s, u, dur);
@@ -380,4 +415,4 @@ function renderAt(t: number) {
   document.body.style.opacity = String(1 - clamp((t - total) / 0.5));
 }
 
-Object.assign(window, { renderAt, DURATION, MARKS: { ...marks, hits, bpm: BPM }, SCENES: { teaser: [0, marks.steerIntro], steer: [marks.steerIntro, marks.steerDrop + 26 * BEAT] } });
+Object.assign(window, { renderAt, DURATION, MARKS: { ...marks, hits, bpm: BPM }, SCENES: { teaser: [0, marks.steerIntro], steer: [marks.steerIntro, marks.steerEnd + 3 * BEAT] } });
